@@ -1,5 +1,5 @@
 <?php
-require_once 'config.php';
+require_once 'db_connect.php';
 
 $id = isset($_GET['id']) ? (int)$_GET['id'] : 0;
 if ($id <= 0) { header("Location: edit.php"); exit; }
@@ -96,3 +96,4 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 </div>
 </body>
 </html>
+
