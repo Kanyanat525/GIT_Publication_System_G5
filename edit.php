@@ -1,5 +1,5 @@
 <?php
-require_once 'config.php';
+require_once 'db_connect.php';
 
 /* ---------- Tabs -> type_ID mapping ---------- */
 $tab = $_GET['tab'] ?? 'บทความ';
@@ -199,3 +199,4 @@ a{color:inherit;text-decoration:none}
 </div>
 </body>
 </html>
+
