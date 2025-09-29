@@ -4,15 +4,11 @@ require_once "db_connect.php";
 if ($_SERVER["REQUEST_METHOD"] === "POST") {
     $username = trim($_POST["username"]);
     $email = trim($_POST["email"]);
-    $password = $_POST["password"];
     $user_type_ID = $_POST["user_type_ID"];
 
-    if (empty($username) || empty($email) || empty($password) || empty($user_type_ID)) {
+    if (empty($username) || empty($email) || empty($user_type_ID)) {
         $error = "กรุณากรอกข้อมูลให้ครบทุกช่อง";
     } else {
-        // เข้ารหัสรหัสผ่าน
-        $hashed_password = password_hash($password, PASSWORD_BCRYPT);
-
         // ตรวจสอบว่า username หรือ email ซ้ำหรือไม่
         $check_sql = "SELECT * FROM registration_request WHERE username = ? OR email = ?";
         $stmt = $conn->prepare($check_sql);
@@ -23,10 +19,10 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
         if ($result->num_rows > 0) {
             $error = "ชื่อผู้ใช้หรืออีเมลนี้มีอยู่ในคำร้องแล้ว";
         } else {
-            // เพิ่มคำร้องลงในฐานข้อมูล
-            $sql = "INSERT INTO registration_request (username, email, password, request_user_type_ID) VALUES (?, ?, ?, ?)";
+            // เพิ่มคำร้องลงในฐานข้อมูล (ไม่มีรหัสผ่านแล้ว)
+            $sql = "INSERT INTO registration_request (username, email, request_user_type_ID) VALUES (?, ?, ?)";
             $stmt = $conn->prepare($sql);
-            $stmt->bind_param("sssi", $username, $email, $hashed_password, $user_type_ID);
+            $stmt->bind_param("ssi", $username, $email, $user_type_ID);
 
             if ($stmt->execute()) {
                 $success = "ส่งคำร้องเรียบร้อยแล้ว 🎉 กรุณารอผู้ดูแลระบบตรวจสอบ";
@@ -73,7 +69,7 @@ $type_result = $conn->query("SELECT * FROM user_type ORDER BY user_type_ID ASC")
             letter-spacing: 1px;
         }
 
-        /* ✅ ปุ่มใน Header */
+        /* ปุ่มใน Header */
         .header-buttons {
             display: flex;
             align-items: center;
@@ -96,11 +92,6 @@ $type_result = $conn->query("SELECT * FROM user_type ORDER BY user_type_ID ASC")
             color: white;
         }
 
-        .btn-secondary:focus {
-            outline: 2px solid #2563EB;
-            outline-offset: 2px;
-        }
-
         .btn-primary {
             color: white;
             background: #1D4ED8;
@@ -115,11 +106,6 @@ $type_result = $conn->query("SELECT * FROM user_type ORDER BY user_type_ID ASC")
         .btn-primary:hover {
             background: #2563EB;
             border-color: #2563EB;
-        }
-
-        .btn-primary:focus {
-            outline: 2px solid #2563EB;
-            outline-offset: 2px;
         }
 
         main {
@@ -145,7 +131,6 @@ $type_result = $conn->query("SELECT * FROM user_type ORDER BY user_type_ID ASC")
 
         input[type="text"],
         input[type="email"],
-        input[type="password"],
         select {
             width: 100%;
             padding: 12px;
@@ -180,15 +165,12 @@ $type_result = $conn->query("SELECT * FROM user_type ORDER BY user_type_ID ASC")
 </head>
 <body>
     <header>
-        <!-- ✅ ชื่อระบบ -->
+        <!-- ชื่อระบบ -->
         <span class="title">ระบบบริหารจัดการผลงานตีพิมพ์</span>
 
-        <!-- ✅ ปุ่มใน Header -->
+        <!-- ปุ่มใน Header -->
         <div class="header-buttons">
-            <!-- ปุ่มส่งคำร้อง -->
             <a href="request_account.php" class="btn-secondary">ส่งคำร้องขอบัญชี</a>
-
-            <!-- ปุ่มเข้าสู่ระบบ -->
             <a href="login.php" class="btn-primary">เข้าสู่ระบบ</a>
         </div>
     </header>
@@ -205,7 +187,6 @@ $type_result = $conn->query("SELECT * FROM user_type ORDER BY user_type_ID ASC")
             <form method="POST" action="">
                 <input type="text" name="username" placeholder="ชื่อผู้ใช้" required>
                 <input type="email" name="email" placeholder="อีเมล" required>
-                <input type="password" name="password" placeholder="รหัสผ่าน" required>
 
                 <select name="user_type_ID" required>
                     <option value="">-- เลือกประเภทผู้ใช้ --</option>
