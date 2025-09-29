@@ -5,12 +5,11 @@ include('db_connect.php');
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['update_pub'])) {
     $pub_ID       = intval($_POST['pub_ID']);
     $title        = mysqli_real_escape_string($conn, $_POST['title']);
-    $publish_year = mysqli_real_escape_string($conn, $_POST['publish_year']); // 2024
+    $publish_year = mysqli_real_escape_string($conn, $_POST['publish_year']); 
     $type_ID      = intval($_POST['type_ID']);
     $file         = mysqli_real_escape_string($conn, $_POST['file']);
     $status       = mysqli_real_escape_string($conn, $_POST['status']);
 
-    // อัปเดตรายละเอียดผลงาน
     $sql = "UPDATE publication 
             SET title='$title',
                 publish_date='{$publish_year}-01-01',
@@ -20,7 +19,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['update_pub'])) {
             WHERE pub_ID=$pub_ID";
     mysqli_query($conn, $sql);
 
-    // ลบ keyword เดิม -> ใส่ใหม่
     mysqli_query($conn, "DELETE FROM pub_keyword WHERE pub_ID=$pub_ID");
 
     if (!empty($_POST['keywords'])) {
@@ -28,7 +26,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['update_pub'])) {
             $kwName = trim($kwName);
             if ($kwName === '') continue;
 
-            // ถ้า keyword ยังไม่มีในตาราง keyword -> insert ใหม่
             $res = mysqli_query($conn, "SELECT key_ID FROM keyword WHERE key_name='".mysqli_real_escape_string($conn,$kwName)."' LIMIT 1");
             if ($res && mysqli_num_rows($res) > 0) {
                 $row    = mysqli_fetch_assoc($res);
@@ -37,7 +34,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['update_pub'])) {
                 mysqli_query($conn, "INSERT INTO keyword (key_name) VALUES ('".mysqli_real_escape_string($conn,$kwName)."')");
                 $key_ID = mysqli_insert_id($conn);
             }
-            // ผูก pub ↔ keyword
             mysqli_query($conn, "INSERT INTO pub_keyword (pub_ID, key_ID) VALUES ($pub_ID, $key_ID)");
         }
     }
@@ -69,7 +65,7 @@ if (isset($_GET['delete'])) {
   .navbar {background:#fff; padding:15px 40px; display:flex; justify-content:space-between; border-bottom:1px solid #e5e7eb;}
   .system-title {font-size:24px; font-weight:700; color:#1d4ed8; letter-spacing:2px;}
   .categories {display:flex; justify-content:center; gap:20px; margin:30px; flex-wrap:wrap;}
-    .category-card {background:#fff; padding: 40px;px; border-radius:16px; width:160px; text-align:center; box-shadow:0 3px 8px rgba(0,0,0,.1); cursor:pointer;}
+  .category-card {background:#fff; padding:40px; border-radius:16px; width:160px; text-align:center; box-shadow:0 3px 8px rgba(0,0,0,.1); cursor:pointer;}
   .category-card:hover {transform: translateY(-3px); box-shadow:0 6px 14px rgba(0,0,0,.15);}
   .file-section {display:none; max-width:1000px; margin:0 auto 40px; background:#fff; padding:20px; border-radius:12px;}
   .file-section.active {display:block;}
@@ -81,39 +77,50 @@ if (isset($_GET['delete'])) {
   .action-btn{display:inline-block;padding:6px 14px;border:none;border-radius:6px;cursor:pointer;font-size:14px;font-weight:500;text-decoration:none;margin:3px;transition:.2s}
   .edit-btn{background:#facc15;color:#000}.edit-btn:hover{background:#eab308}
   .delete-btn{background:#ef4444;color:#fff}.delete-btn:hover{background:#dc2626}
-
-  /* Modal */
   .modal{display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);justify-content:center;align-items:center}
   .modal-content{background:#fff;padding:20px;border-radius:12px;width:600px;max-height:90vh;overflow-y:auto}
   .close-btn{float:right;cursor:pointer;font-size:20px}
   label{display:block;margin-top:10px;font-weight:500}
   input,select{width:100%;padding:8px;margin-top:5px;border:1px solid #ccc;border-radius:6px}
   .btn-primary{background:#2563eb;color:#fff;width:100%;padding:10px;border:none;border-radius:8px;margin-top:15px}
-
-  /* Keyword chips */
   .kw-row{display:flex;gap:8px;align-items:center;margin-top:6px}
   .kw-input{flex:1}
   .kw-chips{display:flex;flex-wrap:wrap;gap:8px;margin-top:8px}
   .chip{display:inline-flex;align-items:center;gap:8px;background:#eef2ff;color:#1e40af;border:1px solid #c7d2fe;border-radius:9999px;padding:6px 10px}
   .chip button{background:transparent;border:none;cursor:pointer;font-weight:700;color:#1e40af}
-    .logout-btn {
-    background:#ef4444;
-    color:#fff;
-    padding:8px 16px;
-    border-radius:6px;
-    text-decoration:none;
-    font-weight:500;
-    transition:background .2s;
-    }
-    .logout-btn:hover {background:#dc2626;}
+  .logout-btn {background:#ef4444;color:#fff;padding:8px 16px;border-radius:6px;text-decoration:none;font-weight:500;transition:background .2s;}
+  .logout-btn:hover {background:#dc2626;}
 
+ .feedback-wrapper {
+  max-width: 1000px;   /* ให้ตรงกับ .file-section ที่คุณใช้ */
+  margin: 0 auto;      /* จัดกึ่งกลาง */
+  padding: 0 20px;     /* กันชิดขอบ */
+}
+.feedback-bottom {
+  display: flex;
+  justify-content: flex-end;  /* ชิดขวาในกรอบ */
+  margin: 20px 0;
+}
+.feedback-bottom a {
+  color: #2563eb;
+  font-weight: 600;
+  text-decoration: underline;  
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  transition: 0.2s;
+}
+.feedback-bottom a:hover {
+  color: #1e40af;
+  text-decoration: underline;
+}
 </style>
 </head>
 <body>
 
 <div class="navbar">
   <span class="system-title">ระบบบริหารจัดการผลงานตีพิมพ์</span>
-    <a href="logout.php" class="logout-btn">ออกจากระบบ</a>
+  <a href="logout.php" class="logout-btn">ออกจากระบบ</a>
 </div>
 
 <!-- การ์ดหมวดหมู่ -->
@@ -125,7 +132,6 @@ if (isset($_GET['delete'])) {
 </div>
 
 <?php
-// ฟังก์ชันแสดงตารางไฟล์
 function renderTable($conn, $type_id, $html_id, $title) {
     $sql = "SELECT p.*, t.type_name 
             FROM publication p
@@ -141,7 +147,6 @@ function renderTable($conn, $type_id, $html_id, $title) {
 
     $i=1;
     while($row=mysqli_fetch_assoc($res)){
-        // ดึง keyword
         $ids = []; $names = [];
         $kwres = mysqli_query($conn,"SELECT k.key_ID,k.key_name
                                      FROM pub_keyword pk
@@ -176,17 +181,13 @@ renderTable($conn, 4, 'other',    'อื่น ๆ');
   <div class="modal-content">
     <span class="close-btn" onclick="closeModal()">&times;</span>
     <h3>รายละเอียดผลงาน</h3>
-
     <form method="POST" action="" id="editForm">
       <input type="hidden" name="update_pub" value="1">
       <input type="hidden" name="pub_ID" id="pub_ID">
-
       <label>ชื่อผลงาน</label>
       <input type="text" name="title" id="title">
-
       <label>ปีพิมพ์</label>
       <input type="text" name="publish_year" id="publish_year" placeholder="ตัวอย่าง 2024">
-
       <label>ประเภท</label>
       <select name="type_ID" id="type_ID">
         <option value="1">ตำรา</option>
@@ -194,29 +195,39 @@ renderTable($conn, 4, 'other',    'อื่น ๆ');
         <option value="3">บทความ</option>
         <option value="4">อื่น ๆ</option>
       </select>
-
       <label>ไฟล์ (พาธไฟล์/ชื่อไฟล์)</label>
       <input type="text" name="file" id="file" placeholder="เช่น file_1.pdf">
-
       <hr>
       <h4>สำหรับเจ้าหน้าที่</h4>
-
       <label>Keyword</label>
       <div class="kw-row">
         <input type="text" class="kw-input" id="kw_input" placeholder="พิมพ์คีย์เวิร์ด แล้วกด Enter หรือปุ่มเพิ่ม">
         <button type="button" class="action-btn edit-btn" onclick="addKeyword()">+ เพิ่ม</button>
       </div>
       <div id="kw_chips" class="kw-chips"></div>
-
       <label>สถานะ</label>
       <select id="status" name="status">
         <option value="Pending">Pending</option>
         <option value="Approved">Approved</option>
         <option value="Modify">Modify</option>
       </select>
-
       <button type="submit" class="btn-primary">บันทึก</button>
     </form>
+  </div>
+</div>
+
+<!-- ลิงก์เสนอแนะ -->
+<div class="feedback-wrapper">
+  <div class="feedback-bottom">
+    <a href="feedback.php">
+      <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18"
+           viewBox="0 0 24 24" fill="none" stroke="currentColor"
+           stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
+           class="lucide lucide-message-square">
+        <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2z"/>
+      </svg>
+      เสนอแนะเกี่ยวกับระบบ
+    </a>
   </div>
 </div>
 
@@ -225,7 +236,6 @@ function showFiles(id){
   document.querySelectorAll('.file-section').forEach(sec=>sec.classList.remove('active'));
   document.getElementById(id).classList.add('active');
 }
-
 function openModal(data){
   document.getElementById('pub_ID').value      = data.pub_ID;
   document.getElementById('title').value       = data.title || '';
@@ -233,28 +243,20 @@ function openModal(data){
   document.getElementById('type_ID').value     = data.type_ID;
   document.getElementById('file').value        = data.file || '';
   document.getElementById('status').value      = data.status || 'Pending';
-
-  // รีเซ็ต keyword chips
   document.getElementById('kw_chips').innerHTML = '';
   if (Array.isArray(data.keyword_names)) {
     data.keyword_names.forEach(name => addKeyword(name));
   }
-
   document.getElementById('editModal').style.display='flex';
 }
-
 function closeModal(){ document.getElementById('editModal').style.display='none'; }
-
 function addKeyword(value){
   const input = document.getElementById('kw_input');
   let val = (value !== undefined ? value : input.value).trim();
   if (!val) return;
-
-  // กันซ้ำ
   const chips = Array.from(document.querySelectorAll('#kw_chips .chip span'))
                      .map(s=>s.textContent.toLowerCase());
   if (chips.includes(val.toLowerCase())) { input.value=''; return; }
-
   const chip = document.createElement('div');
   chip.className = 'chip';
   chip.innerHTML = `<span></span><button type="button" title="ลบ">×</button>
@@ -263,11 +265,8 @@ function addKeyword(value){
   chip.querySelector('input').value = val;
   chip.querySelector('button').onclick = () => chip.remove();
   document.getElementById('kw_chips').appendChild(chip);
-
   input.value = '';
 }
-
-// Enter = เพิ่ม keyword
 document.getElementById('kw_input').addEventListener('keydown', e=>{
   if (e.key === 'Enter') { e.preventDefault(); addKeyword(); }
 });
