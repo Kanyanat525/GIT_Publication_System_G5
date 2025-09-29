@@ -323,8 +323,8 @@ function getCategoryIcon($type) {
                     <p class="text-xl text-gray-500">ไม่พบผลงานตีพิมพ์ที่ตรงกับเงื่อนไขการค้นหาของคุณ</p>
                 </div>
             <?php endif; ?>
-            <!-- หลังจบผลการค้นหา -->
-<div class="flex justify-end mt-4">
+<!-- หลังจบผลการค้นหา -->
+<div class="flex justify-end mt-4 space-x-2 items-center">
     <a href="feedback.php" 
        class="text-blue-600 hover:text-blue-800 font-semibold flex items-center transition duration-150 underline">
         <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" 
@@ -334,7 +334,21 @@ function getCategoryIcon($type) {
         </svg>
         เสนอแนะเกี่ยวกับระบบ
     </a>
+
+    <span class="text-gray-400">|</span>
+
+    <a href="manual.php" 
+       class="text-blue-600 hover:text-blue-800 font-semibold flex items-center transition duration-150 underline">
+        <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" 
+             stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" 
+             class="lucide lucide-book mr-1">
+            <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/>
+            <path d="M4 4.5A2.5 2.5 0 0 1 6.5 7H20v13"/>
+        </svg>
+        คู่มือการใช้งาน
+    </a>
 </div>
+
 
         </div>
 
@@ -388,6 +402,26 @@ function showModal(title, abstract, authors, year) {
 function closeModal() {
     document.getElementById('modal').classList.add('hidden');
     document.getElementById('modal').classList.remove('flex');
+}
+</script>
+
+<script>
+function showModal(title, abstract, authors, year, file) {
+    document.getElementById('modalTitle').innerText = title;
+    document.getElementById('modalAbstract').innerText = abstract;
+    document.getElementById('modalAuthors').innerText = "ผู้แต่ง: " + authors;
+    document.getElementById('modalYear').innerText = "ปี: " + year;
+    document.getElementById('modal').classList.remove('hidden');
+    document.getElementById('modal').classList.add('flex');
+
+    let downloadBtn = document.getElementById('modalDownload');
+    if (file && file !== '') {
+        downloadBtn.href = 'uploads/' + file; // สมมติว่าไฟล์อยู่ในโฟลเดอร์ uploads/
+        downloadBtn.setAttribute("download", file); // บังคับให้ดาวน์โหลด
+        downloadBtn.style.display = 'flex';
+    } else {
+        downloadBtn.style.display = 'none';
+    }
 }
 </script>
 
