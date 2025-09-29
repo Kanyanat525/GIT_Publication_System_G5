@@ -52,7 +52,7 @@ function beYear($date){ return $date? (date('Y',strtotime($date))+543) : ''; }
     <span class="text-2xl font-bold text-blue-700 tracking-wider">ระบบบริหารจัดการผลงานตีพิมพ์</span>
     <div class="flex items-center gap-3">
       <a href="edit.php?uid=<?= (int)$uid ?>" class="px-3 py-1.5 rounded-lg border text-gray-700 hover:bg-gray-50">ย้อนกลับ</a>
-      <a href="logout.php" class="px-4 py-1.5 rounded-lg bg-red-600 text-white hover:bg-red-700">Log out</a>
+      <a href="logout.php" class="px-4 py-1.5 rounded-lg bg-red-600 text-white hover:bg-red-700">ออกจากระบบ</a>
     </div>
   </div>
 </header>
@@ -149,3 +149,4 @@ function beYear($date){ return $date? (date('Y',strtotime($date))+543) : ''; }
 </main>
 </body>
 </html>
+
