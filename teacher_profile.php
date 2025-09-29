@@ -1,104 +1,149 @@
 <?php
 require_once 'db_connect.php';
-function backHref($d='edit.php'){ return !empty($_GET['return'])?$_GET['return']:$d; }
 
+/* เลือก uid: ถ้าไม่ส่งมา จะใช้อาจารย์คนแรก */
 $uid = isset($_GET['uid']) ? (int)$_GET['uid'] : 0;
-
-/* ถ้าไม่ส่ง uid โชว์รายชื่อให้เลือก */
-if ($uid<=0){
-  $rs = mysqli_query($conn,"SELECT UID,username,email FROM user ORDER BY username");
-  echo '<!doctype html><meta charset="utf-8"><title>เลือกอาจารย์</title>
-  <style>body{font-family:sans-serif;background:#eee} .box{max-width:900px;margin:20px auto;background:#fff;border:1px solid #ddd;border-radius:10px;padding:16px}
-  .backbtn{padding:6px 10px;border:1px solid #d0d0d0;border-radius:8px;background:#fff;cursor:pointer}</style>
-  <div class="box"><button class="backbtn" onclick="if(history.length>1){history.back()}else{location.href=\''.htmlspecialchars(backHref('edit.php')).'\'}">← ย้อนกลับ</button>
-  <h2>เลือกอาจารย์</h2><ul>';
-  while($u=mysqli_fetch_assoc($rs)){
-    echo '<li><a href="teacher_profile.php?uid='.$u['UID'].'">'.htmlspecialchars($u['username']).'</a> — '.htmlspecialchars($u['email']).'</li>';
-  }
-  echo '</ul></div>'; exit;
+if ($uid <= 0) {
+  $res = mysqli_query($conn, "SELECT UID FROM user WHERE user_type_ID=3 ORDER BY UID ASC LIMIT 1");
+  $row = mysqli_fetch_assoc($res);
+  if ($row) $uid = (int)$row['UID']; else die('ยังไม่มีข้อมูลอาจารย์');
 }
 
-/* โหลดโปรไฟล์ */
-$st=mysqli_prepare($conn,"SELECT UID,username,email FROM user WHERE UID=?");
-mysqli_stmt_bind_param($st,"i",$uid);
+/* ดึงข้อมูลอาจารย์ */
+$st = mysqli_prepare($conn, "SELECT UID, username, email FROM user WHERE UID=?");
+mysqli_stmt_bind_param($st, "i", $uid);
 mysqli_stmt_execute($st);
-$teacher=mysqli_fetch_assoc(mysqli_stmt_get_result($st));
+$user = mysqli_fetch_assoc(mysqli_stmt_get_result($st));
 mysqli_stmt_close($st);
-if(!$teacher){ die('ไม่พบผู้ใช้'); }
+if(!$user){ die("ไม่พบผู้ใช้ (UID=$uid)"); }
 
-/* โหลดผลงาน */
-$st=mysqli_prepare($conn,"
-SELECT p.pub_ID id,p.title,p.publish_date,p.file file_path,pt.type_name
-FROM publication p
-JOIN pub_author pa ON pa.pub_ID=p.pub_ID AND pa.UID=? AND pa.is_creator=1
-LEFT JOIN publicationtype pt ON pt.type_ID=p.type_ID
-ORDER BY p.pub_ID DESC");
-mysqli_stmt_bind_param($st,"i",$uid);
+/* ดึงผลงานของอาจารย์ (เพิ่มฟิลด์ status) */
+$st = mysqli_prepare($conn, "
+  SELECT p.pub_ID, p.title, p.publish_date, pt.type_name, p.file, p.status
+  FROM publication p
+  JOIN pub_author pa ON pa.pub_ID=p.pub_ID AND pa.UID=?
+  LEFT JOIN publicationtype pt ON pt.type_ID=p.type_ID
+  ORDER BY p.publish_date DESC, p.pub_ID DESC
+");
+mysqli_stmt_bind_param($st, "i", $uid);
 mysqli_stmt_execute($st);
-$res=mysqli_stmt_get_result($st);
-$items=[];
-while($r=mysqli_fetch_assoc($res)){ $r['year']=$r['publish_date']? (date('Y',strtotime($r['publish_date']))+543):''; $items[]=$r; }
+$rs = mysqli_stmt_get_result($st);
+$pubs=[]; while($r=mysqli_fetch_assoc($rs)){ $pubs[]=$r; }
 mysqli_stmt_close($st);
 
-function thumbPath($p){ return ($p && preg_match('/\.(jpe?g|png|gif|webp)$/i',$p) && file_exists($p))? $p : 'assets/logo.png'; }
+/* helper: ปี พ.ศ. */
+function beYear($date){ return $date? (date('Y',strtotime($date))+543) : ''; }
 ?>
 <!doctype html>
 <html lang="th">
 <head>
-<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1200">
-<title>โปรไฟล์อาจารย์: <?= htmlspecialchars($teacher['username']) ?></title>
-<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+Thai:wght@400;700;900&display=swap" rel="stylesheet">
-<style>
-  *,*:before,*:after{box-sizing:border-box}
-  body{margin:0;background:#eee;font-family:'Noto Sans Thai',system-ui}
-  .wrap{max-width:1100px;margin:0 auto}
-  .top{background:#fff;border-bottom:1px solid #ddd;padding:14px 16px;display:flex;align-items:center;gap:14px}
-  .backbtn{padding:6px 10px;border:1px solid #d0d0d0;border-radius:8px;background:#fff;cursor:pointer}
-  .avatar{width:56px;height:56px;border-radius:50%;background:#dbeafe;color:#1e40af;display:inline-flex;align-items:center;justify-content:center;font-weight:900}
-  .name{font-weight:900;font-size:20px}
-  .right{margin-left:auto}
-  .btn{display:inline-block;padding:8px 14px;border:1px solid #d0d0d0;border-radius:10px;background:#2d6cdf;color:#fff;text-decoration:none}
-  .list{background:#fff;margin:16px;border-radius:8px;border:1px solid #e4e4e4}
-  .item{display:flex;gap:14px;padding:12px 14px;border-top:1px solid #f0f0f0}
-  .item:first-child{border-top:0}
-  .thumb{width:78px;height:78px;background:#f7f7f7;border:1px solid #ddd;border-radius:10px;overflow:hidden;flex:0 0 78px}
-  .thumb img{width:100%;height:100%;object-fit:cover}
-  .title{margin:0 0 6px 0;font-weight:800}
-  .meta{color:#555}
-  .actions{margin-top:6px}
-  .pill{display:inline-block;padding:4px 10px;border:1px solid #d7d7d7;border-radius:8px;background:#f5f5f5;color:#222;text-decoration:none;font-size:12px}
-</style>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>โปรไฟล์อาจารย์</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+Thai:wght@300;400;600;700;900&display=swap" rel="stylesheet">
+<style>body{font-family:'Noto Sans Thai',system-ui}</style>
 </head>
-<body>
-<div class="wrap">
-  <div class="top">
-    <button class="backbtn" onclick="if(history.length>1){history.back()}else{location.href='<?= htmlspecialchars(backHref('edit.php')) ?>'}">← ย้อนกลับ</button>
-    <div class="avatar"><?= htmlspecialchars(mb_substr($teacher['username'],0,1)) ?></div>
-    <div>
-      <div class="name"><?= htmlspecialchars($teacher['username']) ?></div>
-      <div style="color:#777"><?= htmlspecialchars($teacher['email'] ?? '') ?></div>
-    </div>
-    <div class="right">
-      <a class="btn" href="add_publication.php?uid=<?= (int)$teacher['UID'] ?>">+ เพิ่มผลงาน</a>
-    </div>
-  </div>
+<body class="min-h-screen bg-gradient-to-b from-white via-blue-200 to-blue-100">
 
-  <div class="list">
-    <?php if(empty($items)): ?>
-      <div style="padding:14px;color:#666">ยังไม่มีผลงาน</div>
-    <?php else: foreach($items as $row): ?>
-      <div class="item">
-        <div class="thumb"><img src="<?= htmlspecialchars(thumbPath($row['file_path'])) ?>"></div>
-        <div>
-          <p class="title"><?= htmlspecialchars($row['title']) ?></p>
-          <div class="meta"><?= htmlspecialchars($row['type_name'] ?? '') ?> <?= $row['year'] ? '• '.$row['year'] : '' ?></div>
-          <div class="actions">
-            <a class="pill" href="edit_data.php?id=<?= (int)$row['id'] ?>&return=teacher_profile.php&uid=<?= (int)$teacher['UID'] ?>">แก้ไข</a>
-          </div>
-        </div>
-      </div>
-    <?php endforeach; endif; ?>
+<!-- Header -->
+<header class="bg-white shadow">
+  <div class="max-w-7xl mx-auto px-4 py-4 flex items-center justify-between">
+    <span class="text-2xl font-bold text-blue-700 tracking-wider">ระบบบริหารจัดการผลงานตีพิมพ์</span>
+    <div class="flex items-center gap-3">
+      <a href="edit.php?uid=<?= (int)$uid ?>" class="px-3 py-1.5 rounded-lg border text-gray-700 hover:bg-gray-50">ย้อนกลับ</a>
+      <a href="logout.php" class="px-4 py-1.5 rounded-lg bg-red-600 text-white hover:bg-red-700">Log out</a>
+    </div>
   </div>
-</div>
+</header>
+
+<?php
+  // แสดงแถบแจ้งเตือนหลังอัปโหลดเสร็จ
+  $uploaded_ok = (isset($_GET['uploaded']) && $_GET['uploaded'] === '1')
+              || (isset($_GET['status'])   && $_GET['status']   === 'uploaded');
+  if ($uploaded_ok):
+?>
+  <div class="max-w-7xl mx-auto px-4 mt-4">
+    <div class="rounded-lg bg-blue-50 border border-blue-200 text-blue-800 px-4 py-3">
+      <div class="font-semibold">อัปโหลดสำเร็จ</div>
+      <div>รายงานถูกส่งแล้ว — <span class="font-semibold">สถานะ: รออนุมัติ</span></div>
+    </div>
+  </div>
+<?php endif; ?>
+
+<main class="max-w-6xl mx-auto px-4 py-8 space-y-6">
+  <!-- การ์ดข้อมูลอาจารย์ -->
+  <section class="bg-white rounded-2xl shadow p-6">
+    <div class="flex items-center gap-4">
+      <div class="w-14 h-14 rounded-full bg-blue-100 text-blue-800 font-black flex items-center justify-center">
+        <?= htmlspecialchars(mb_strtoupper(mb_substr($user['username'],0,1))) ?>
+      </div>
+      <div>
+        <div class="text-xl font-bold"><?= htmlspecialchars($user['username']) ?></div>
+        <div class="text-gray-600"><?= htmlspecialchars($user['email'] ?? '') ?></div>
+      </div>
+      <div class="ml-auto">
+        <a class="px-3 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+           href="add_publication.php?uid=<?= (int)$user['UID'] ?>">
+          + เพิ่มผลงาน
+        </a>
+      </div>
+    </div>
+  </section>
+
+  <!-- ตารางผลงาน -->
+  <section class="bg-white rounded-2xl shadow p-6">
+    <h2 class="text-lg font-bold mb-4 text-gray-800">ผลงานตีพิมพ์</h2>
+    <?php if(empty($pubs)): ?>
+      <div class="text-gray-600">ยังไม่มีผลงาน</div>
+    <?php else: ?>
+      <div class="overflow-x-auto">
+        <table class="w-full text-left border-collapse">
+          <thead>
+            <tr class="bg-blue-100 text-gray-800">
+              <th class="px-4 py-2">ชื่อเรื่อง</th>
+              <th class="px-4 py-2">ประเภท</th>
+              <th class="px-4 py-2">ปี พ.ศ.</th>
+              <th class="px-4 py-2">สถานะ</th> <!-- ✅ เพิ่มคอลัมน์สถานะ -->
+              <th class="px-4 py-2 text-center">การจัดการ</th>
+            </tr>
+          </thead>
+          <tbody class="divide-y">
+            <?php foreach($pubs as $p): ?>
+              <tr>
+                <td class="px-4 py-2"><?= htmlspecialchars($p['title']) ?></td>
+                <td class="px-4 py-2"><?= htmlspecialchars($p['type_name']) ?></td>
+                <td class="px-4 py-2"><?= beYear($p['publish_date']) ?></td>
+                <td class="px-4 py-2">
+                  <?php
+                    $status = $p['status'] ?? 'pending';
+                    if ($status === 'approved') {
+                      echo '<span class="px-2 py-1 rounded bg-green-100 text-green-700 text-sm font-semibold">อนุมัติแล้ว</span>';
+                    } elseif ($status === 'rejected') {
+                      echo '<span class="px-2 py-1 rounded bg-red-100 text-red-700 text-sm font-semibold">ไม่อนุมัติ</span>';
+                    } else {
+                      echo '<span class="px-2 py-1 rounded bg-yellow-100 text-yellow-700 text-sm font-semibold">รออนุมัติ</span>';
+                    }
+                  ?>
+                </td>
+                <td class="px-4 py-2 text-center space-x-2">
+                  <a class="inline-block px-3 py-1.5 rounded bg-gray-600 text-white hover:bg-gray-700"
+                     href="edit_data.php?id=<?= (int)$p['pub_ID'] ?>&uid=<?= (int)$user['UID'] ?>&return=teacher_profile.php?uid=<?= (int)$user['UID'] ?>">
+                    แก้ไข
+                  </a>
+                  <form action="delete_publication.php" method="post" class="inline"
+                        onsubmit="return confirm('ยืนยันลบผลงานนี้หรือไม่?');">
+                    <input type="hidden" name="id" value="<?= (int)$p['pub_ID'] ?>">
+                    <input type="hidden" name="uid" value="<?= (int)$user['UID'] ?>">
+                    <button type="submit" class="px-3 py-1.5 rounded bg-red-600 text-white hover:bg-red-700">ลบ</button>
+                  </form>
+                </td>
+              </tr>
+            <?php endforeach; ?>
+          </tbody>
+        </table>
+      </div>
+    <?php endif; ?>
+  </section>
+</main>
 </body>
 </html>
