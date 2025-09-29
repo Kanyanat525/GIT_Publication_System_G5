@@ -1,12 +1,11 @@
 <?php
 session_start();
-require_once "db_connect.php"; // เชื่อมต่อฐานข้อมูล
+require_once "db_connect.php";
 
 if ($_SERVER["REQUEST_METHOD"] == "POST") {
     $username = trim($_POST["username"]);
     $password = $_POST["password"];
 
-    // เตรียมคำสั่ง SQL
     $sql = "SELECT * FROM user WHERE username = ?";
     $stmt = $conn->prepare($sql);
     $stmt->bind_param("s", $username);
@@ -16,33 +15,19 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     if ($result->num_rows === 1) {
         $row = $result->fetch_assoc();
 
-        // ตรวจสอบรหัสผ่านที่เข้ารหัสไว้ใน DB
         if (password_verify($password, $row["password"])) {
             $_SESSION["user"] = $row["username"];
             $_SESSION["user_id"] = $row["UID"];
             $_SESSION["user_type"] = $row["user_type_ID"];
 
-            // ✅ กำหนดเส้นทางไปยังหน้าเฉพาะของแต่ละประเภทผู้ใช้
             switch ($row["user_type_ID"]) {
-                case 1: // ถ้าเป็นแอดมิน
-                    header("Location: admin.php");
-                    break;
-                case 2: // ถ้าเป็นเจ้าหน้าที่ (Officer)
-                    header("Location: officer.php");
-                    break;
-                case 3: // ถ้าเป็นอาจารย์ (Lecturer)
-                    header("Location: lecturer.php");
-                    break;
-                case 4: // ถ้าเป็นนักศึกษา (Student)
-                    header("Location: student.php");
-                    break;
-                default:
-                    // หาก user_type_ID ไม่ตรงกับที่กำหนด ให้ไปหน้า default
-                    header("Location: dashboard.php");
-                    break;
+                case 1: header("Location: admin.php"); break;
+                case 2: header("Location: officer.php"); break;
+                case 3: header("Location: lecturer.php"); break;
+                case 4: header("Location: student.php"); break;
+                default: header("Location: dashboard.php"); break;
             }
             exit();
-
         } else {
             $error = "รหัสผ่านไม่ถูกต้อง";
         }
@@ -57,18 +42,14 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     <meta charset="UTF-8">
     <title>ระบบบริหารจัดการผลงานตีพิมพ์</title>
     <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+Thai:wght@400;600&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
     <style>
-        * {
-            font-family: 'Noto Sans Thai', sans-serif;
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
+        * { font-family: 'Noto Sans Thai', sans-serif; box-sizing: border-box; }
 
         body {
             margin: 0;
             height: 100vh;
-            background: linear-gradient(to bottom, #FFFFFF 19%, #B1D3FE 54%, #CAE2FF 92%);
+            background: linear-gradient(to bottom, #FFFFFF 15%, #B1D3FE 55%, #CAE2FF 90%);
             display: flex;
             justify-content: center;
             align-items: center;
@@ -82,65 +63,87 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
             max-width: 1100px;
         }
 
-        .left {
-            flex: 1;
-            text-align: left;
-        }
+        .left { flex: 1; text-align: left; }
 
         .left h1 {
-            font-size: 2.5rem;
+            font-size: 2.3rem;
             color: #1a2a4e;
-            text-shadow: 2px 2px 4px rgba(0,0,0,0.15);
+            font-weight: 600;
+            line-height: 1.4;
         }
 
-        .right {
-            flex: 1;
-            display: flex;
-            justify-content: flex-end;
-        }
+        .right { flex: 1; display: flex; justify-content: flex-end; }
 
         .login-box {
             background: white;
-            width: 360px;
-            padding: 30px;
-            border-radius: 12px;
-            box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+            width: 380px;
+            padding: 35px;
+            border-radius: 14px;
+            box-shadow: 0 6px 18px rgba(0, 0, 0, 0.08);
         }
 
         .login-box h2 {
-            font-size: 1.2rem;
-            color: #2d3a6b;
-            margin-bottom: 20px;
+            font-size: 1.3rem;
+            color: #1a2a4e;
+            margin-bottom: 25px;
             text-align: center;
         }
 
-        input[type="text"], input[type="password"] {
+        .input-group {
+            position: relative;
             width: 100%;
-            padding: 10px 12px;
-            margin-bottom: 15px;
-            border: 1px solid #ccc;
-            border-radius: 6px;
-            font-size: 1rem;
+            margin-bottom: 18px;
         }
+
+        input[type="text"],
+        input[type="password"] {
+            width: 100%;
+            padding: 12px 44px 12px 14px;
+            border: 1px solid #ccc;
+            border-radius: 8px;
+            font-size: 1rem;
+            transition: border-color 0.2s ease-in-out;
+        }
+
+        input:focus {
+            border-color: #1d4ed8;
+            outline: none;
+            box-shadow: 0 0 3px rgba(29, 78, 216, 0.3);
+        }
+
+        .toggle-password {
+            position: absolute;
+            right: 12px;
+            top: 50%;
+            transform: translateY(-50%);
+            background: none;
+            border: none;
+            color: #1d4ed8;
+            cursor: pointer;
+            font-size: 1.1rem;
+            transition: color 0.2s ease;
+        }
+
+        .toggle-password:hover { color: #0b2e5b; }
 
         .btn {
             width: 100%;
             background: #0b2e5b;
             color: white;
             border: none;
-            padding: 10px;
-            border-radius: 6px;
+            padding: 12px;
+            border-radius: 8px;
             cursor: pointer;
             font-size: 1rem;
-            margin-bottom: 10px;
+            font-weight: 600;
+            margin-top: 8px;
+            transition: background 0.2s ease-in-out;
         }
 
-        .btn:hover {
-            background: #143e7a;
-        }
+        .btn:hover { background: #143e7a; }
 
         .error {
-            color: red;
+            color: #b91c1c;
             font-size: 0.9rem;
             margin-bottom: 10px;
             text-align: center;
@@ -149,12 +152,19 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         .small-link {
             font-size: 0.9rem;
             text-align: right;
-            margin-bottom: 10px;
+            margin-bottom: 12px;
         }
 
         .small-link a {
-            color: #3b5fff;
+            color: #2563eb;
             text-decoration: none;
+        }
+
+        .small-link a:hover { text-decoration: underline; }
+
+        @media (max-width: 768px) {
+            .wrapper { flex-direction: column; text-align: center; }
+            .left { margin-bottom: 35px; }
         }
     </style>
 </head>
@@ -163,13 +173,24 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         <div class="left">
             <h1>ระบบบริหารจัดการผลงานตีพิมพ์</h1>
         </div>
+
         <div class="right">
             <div class="login-box">
                 <h2>เข้าสู่ระบบ</h2>
                 <?php if (!empty($error)) echo "<div class='error'>$error</div>"; ?>
+
                 <form method="POST" action="">
-                    <input type="text" name="username" placeholder="ชื่อผู้ใช้" required>
-                    <input type="password" name="password" placeholder="รหัสผ่าน" required>
+                    <div class="input-group">
+                        <input type="text" name="username" placeholder="ชื่อผู้ใช้" required>
+                    </div>
+
+                    <div class="input-group">
+                        <input type="password" id="password" name="password" placeholder="รหัสผ่าน" required>
+                        <!-- 👁️ ดวงตา: เปิด = มองเห็น, ปิด = ซ่อน -->
+                        <button type="button" class="toggle-password" onclick="togglePassword()">
+                            <i class="fa-solid fa-eye-slash"></i>
+                        </button>
+                    </div>
 
                     <div class="small-link">
                         <a href="request_account.php">ส่งคำร้องขอบัญชี</a>
@@ -180,5 +201,23 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
             </div>
         </div>
     </div>
+
+    <script>
+        // ✅ ฟังก์ชันสลับแสดง/ซ่อนรหัสผ่านให้ถูกตามความหมายของไอคอน
+        function togglePassword() {
+            const passwordInput = document.getElementById("password");
+            const toggleIcon = document.querySelector(".toggle-password i");
+
+            if (passwordInput.type === "password") {
+                passwordInput.type = "text";
+                toggleIcon.classList.remove("fa-eye-slash");
+                toggleIcon.classList.add("fa-eye");
+            } else {
+                passwordInput.type = "password";
+                toggleIcon.classList.remove("fa-eye");
+                toggleIcon.classList.add("fa-eye-slash");
+            }
+        }
+    </script>
 </body>
 </html>
