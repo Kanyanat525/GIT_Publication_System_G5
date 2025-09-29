@@ -102,7 +102,7 @@ if ($is_edit) {
     <span class="text-2xl font-bold text-blue-700 tracking-wider">ระบบบริหารจัดการผลงานตีพิมพ์</span>
     <div class="flex items-center gap-3">
       <a href="<?= htmlspecialchars($return, ENT_QUOTES) ?>" class="px-3 py-1.5 rounded-lg border text-gray-700 hover:bg-gray-50">ย้อนกลับ</a>
-      <a href="logout.php" class="px-4 py-1.5 rounded-lg bg-red-600 text-white hover:bg-red-700">Log out</a>
+      <a href="logout.php" class="px-4 py-1.5 rounded-lg bg-red-600 text-white hover:bg-red-700">ออกจากระบบ</a>
     </div>
   </div>
 </header>
@@ -172,3 +172,4 @@ if ($is_edit) {
 </main>
 </body>
 </html>
+
