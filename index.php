@@ -196,7 +196,7 @@ function getCategoryIcon($type) {
                 <a href="#" class="px-3 py-1.5 font-semibold text-blue-600 border border-blue-600 rounded-lg 
                                   transition duration-150 ease-in-out hover:bg-blue-600 hover:text-white 
                                   focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-opacity-50">
-                    ลงทะเบียน
+                    ส่งคำร้องขอบัญชี
                 </a>
                 <!-- เข้าสู่ระบบ (Primary Button Style) -->
                 <a href="#" class="px-4 py-1.5 font-semibold text-white bg-blue-600 border border-blue-600 rounded-lg 
@@ -284,6 +284,7 @@ function getCategoryIcon($type) {
         
         <!-- Results Section -->
         <h2 class="text-3xl font-bold text-gray-800 mb-6 border-b pb-2">ผลการค้นหา (<?php echo mysqli_num_rows($result); ?> รายการ)</h2>
+        
 
         <div class="space-y-6">
             <?php if (mysqli_num_rows($result) > 0): ?>
@@ -322,6 +323,19 @@ function getCategoryIcon($type) {
                     <p class="text-xl text-gray-500">ไม่พบผลงานตีพิมพ์ที่ตรงกับเงื่อนไขการค้นหาของคุณ</p>
                 </div>
             <?php endif; ?>
+            <!-- หลังจบผลการค้นหา -->
+<div class="flex justify-end mt-4">
+    <a href="feedback.php" 
+       class="text-blue-600 hover:text-blue-800 font-semibold flex items-center transition duration-150 underline">
+        <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" 
+             stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" 
+             class="lucide lucide-message-square mr-1">
+            <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2z"/>
+        </svg>
+        เสนอแนะเกี่ยวกับระบบ
+    </a>
+</div>
+
         </div>
 
     </main>
