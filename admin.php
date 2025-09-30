@@ -1,8 +1,8 @@
 <?php
-// admin.php — ดีไซน์คงเดิม + ตัวแปร/ชื่อคอลัมน์ตรงสคีมาตาม publication_db.sql
-// ตารางที่ใช้: user, user_type
+// admin.php — ใช้สคีมาตาม publication_db.sql เท่านั้น
+// ตาราง: user, user_type, registration_request
 
-session_start();
+require_once "session_check.php";
 require_once 'db_connect.php';
 
 if ($conn->connect_error) {
@@ -11,10 +11,15 @@ if ($conn->connect_error) {
 
 function h($s){ return htmlspecialchars((string)$s, ENT_QUOTES, 'UTF-8'); }
 function flash($msg){ $_SESSION['flash']=$msg; }
-function back(){ header('Location: admin.php'); exit; }
+function back($extra=''){ header('Location: admin.php'.$extra); exit; }
 
+$tab = $_GET['tab'] ?? 'users'; // users | requests
+
+// ---------- Actions ----------
 if ($_SERVER['REQUEST_METHOD']==='POST') {
   $action = $_POST['action'] ?? '';
+
+  // เพิ่มผู้ใช้
   if ($action==='add_user') {
     $username = trim($_POST['username'] ?? '');
     $email    = trim($_POST['email'] ?? '');
@@ -27,11 +32,12 @@ if ($_SERVER['REQUEST_METHOD']==='POST') {
     $pwd_hash = password_hash($pwd_raw, PASSWORD_BCRYPT);
     $stmt = $conn->prepare("INSERT INTO user (username,password,email,user_type_ID) VALUES (?,?,?,?)");
     $stmt->bind_param('sssi', $username, $pwd_hash, $email, $user_type_ID);
-    if(!$stmt->execute()){ flash('เพิ่มผู้ใช้ไม่สำเร็จ'); }
-    else { flash('เพิ่มผู้ใช้สำเร็จ'); }
-    $stmt->close(); back();
+    $ok=$stmt->execute(); $stmt->close();
+    flash($ok?'เพิ่มผู้ใช้สำเร็จ':'เพิ่มผู้ใช้ไม่สำเร็จ');
+    back();
   }
 
+  // แก้ไขผู้ใช้
   if ($action==='update_user') {
     $UID  = (int)($_POST['UID'] ?? 0);
     $username = trim($_POST['username'] ?? '');
@@ -43,23 +49,23 @@ if ($_SERVER['REQUEST_METHOD']==='POST') {
     }
     $stmt = $conn->prepare("UPDATE user SET username=?, email=?, user_type_ID=? WHERE UID=?");
     $stmt->bind_param('ssii', $username, $email, $user_type_ID, $UID);
-    $ok = $stmt->execute();
-    $stmt->close();
+    $ok=$stmt->execute(); $stmt->close();
     flash($ok?'บันทึกแล้ว':'บันทึกไม่สำเร็จ'); back();
   }
 
+  // ลบผู้ใช้
   if ($action==='delete_user') {
     $UID = (int)($_POST['UID'] ?? 0);
     if($UID>0){
       $stmt=$conn->prepare("DELETE FROM user WHERE UID=?");
       $stmt->bind_param('i',$UID);
-      $ok=$stmt->execute();
-      $stmt->close();
+      $ok=$stmt->execute(); $stmt->close();
       flash($ok?'ลบแล้ว':'ลบไม่สำเร็จ');
     }
     back();
   }
 
+  // รีเซ็ตรหัสผ่าน
   if ($action==='reset_password') {
     $UID = (int)($_POST['UID'] ?? 0);
     $new = trim($_POST['new_password'] ?? '');
@@ -67,15 +73,65 @@ if ($_SERVER['REQUEST_METHOD']==='POST') {
       $hash = password_hash($new, PASSWORD_BCRYPT);
       $stmt = $conn->prepare("UPDATE user SET password=? WHERE UID=?");
       $stmt->bind_param('si',$hash,$UID);
-      $ok=$stmt->execute();
-      $stmt->close();
+      $ok=$stmt->execute(); $stmt->close();
       flash($ok?'รีเซ็ตรหัสผ่านแล้ว':'รีเซ็ตรหัสผ่านไม่สำเร็จ');
-    } else { flash('ระบุรหัสผ่านใหม่'); }
+    } else {
+      flash('ระบุรหัสผ่านใหม่');
+    }
     back();
+  }
+
+  // อนุมัติคำร้อง -> สร้าง user แล้วลบคำร้อง
+  if ($action==='approve_request') {
+    $request_ID = (int)($_POST['request_ID'] ?? 0);
+    $temp_password = trim($_POST['temp_password'] ?? '');
+
+    if($request_ID>0 && $temp_password!==''){
+      $stmt=$conn->prepare("SELECT username,email,request_user_type_ID FROM registration_request WHERE request_ID=?");
+      $stmt->bind_param('i',$request_ID);
+      $stmt->execute();
+      $stmt->bind_result($rqUser,$rqEmail,$rqType);
+      if($stmt->fetch()){
+        $stmt->close();
+        $hash = password_hash($temp_password, PASSWORD_BCRYPT);
+        $ins=$conn->prepare("INSERT INTO user (username,password,email,user_type_ID) VALUES (?,?,?,?)");
+        $ins->bind_param('sssi',$rqUser,$hash,$rqEmail,$rqType);
+        if($ins->execute()){
+          $ins->close();
+          $del=$conn->prepare("DELETE FROM registration_request WHERE request_ID=?");
+          $del->bind_param('i',$request_ID);
+          $del->execute(); $del->close();
+          flash('อนุมัติคำร้องและสร้างผู้ใช้เรียบร้อย');
+        } else {
+          $ins->close();
+          flash('สร้างผู้ใช้ไม่สำเร็จ (อาจซ้ำ username/email)');
+        }
+      } else {
+        $stmt->close();
+        flash('ไม่พบคำร้อง');
+      }
+    } else {
+      flash('ข้อมูลอนุมัติไม่ครบ');
+    }
+    back('?tab=requests');
+  }
+
+  // ลบคำร้อง
+  if ($action==='delete_request') {
+    $request_ID = (int)($_POST['request_ID'] ?? 0);
+    if($request_ID>0){
+      $del=$conn->prepare("DELETE FROM registration_request WHERE request_ID=?");
+      $del->bind_param('i',$request_ID);
+      $ok=$del->execute(); $del->close();
+      flash($ok?'ลบคำร้องแล้ว':'ลบคำร้องไม่สำเร็จ');
+    }
+    back('?tab=requests');
   }
 }
 
+// ออกจากระบบ
 if(isset($_GET['logout'])){
+  session_start();
   $_SESSION = [];
   if (ini_get('session.use_cookies')) {
     $p = session_get_cookie_params();
@@ -85,15 +141,31 @@ if(isset($_GET['logout'])){
   header('Location: index.php'); exit;
 }
 
+// ---------- Query data ----------
 $users = [];
-$sql = "SELECT u.UID, u.username, u.email, u.user_type_ID, ut.type_name
-        FROM user u LEFT JOIN user_type ut ON u.user_type_ID = ut.user_type_ID
-        ORDER BY u.UID ASC";
-if ($res = $conn->query($sql)) {
-  while($row=$res->fetch_assoc()) $users[]=$row;
-  $res->close();
+if ($tab==='users') {
+  $sql = "SELECT u.UID, u.username, u.email, u.user_type_ID, ut.type_name
+          FROM user u LEFT JOIN user_type ut ON u.user_type_ID = ut.user_type_ID
+          ORDER BY u.UID ASC";
+  if ($res = $conn->query($sql)) {
+    while($row=$res->fetch_assoc()) $users[]=$row;
+    $res->close();
+  }
 }
 
+$requests = [];
+if ($tab==='requests') {
+  $sql = "SELECT rr.request_ID, rr.username, rr.email, rr.request_user_type_ID, rr.request_date, ut.type_name
+          FROM registration_request rr
+          LEFT JOIN user_type ut ON rr.request_user_type_ID = ut.user_type_ID
+          ORDER BY rr.request_date DESC, rr.request_ID DESC";
+  if ($res = $conn->query($sql)) {
+    while($row=$res->fetch_assoc()) $requests[]=$row;
+    $res->close();
+  }
+}
+
+// user types (ใช้ทั้งสองแท็บ)
 $userTypes = [];
 if ($r = $conn->query("SELECT user_type_ID, type_name FROM user_type ORDER BY user_type_ID")) {
   while($t=$r->fetch_assoc()) $userTypes[]=$t;
@@ -112,21 +184,16 @@ if ($r = $conn->query("SELECT user_type_ID, type_name FROM user_type ORDER BY us
 
 <header class="bg-white shadow">
   <div class="w-full px-6 py-4 flex items-center justify-between">
-    <!-- หัวข้อ -->
     <a href="index.php"
        class="text-2xl font-bold text-blue-700 tracking-wider hover:text-blue-800 focus:outline-none focus:ring-2 focus:ring-blue-300 rounded">
       ระบบบริหารจัดการผลงานตีพิมพ์
     </a>
-
     <div class="flex items-center gap-3">
-      <!-- ปุ่มย้อนกลับ -->
       <a href="index.php"
          onclick="if (document.referrer) { history.back(); return false; }"
          class="px-3 py-1.5 rounded-lg border border-blue-300 bg-white text-blue-700 hover:bg-blue-50">
         ย้อนกลับ
       </a>
-
-      <!-- ปุ่มออกจากระบบ -->
       <a href="?logout=1"
          class="px-4 py-1.5 rounded-lg bg-red-600 text-white hover:bg-red-700">
         ออกจากระบบ
@@ -137,13 +204,12 @@ if ($r = $conn->query("SELECT user_type_ID, type_name FROM user_type ORDER BY us
 
 <div class="max-w-6xl mx-auto p-6">
   <div class="bg-white shadow rounded-2xl p-6">
-    <h2 class="text-2xl font-bold text-gray-700 mb-4">Admin: จัดการบัญชีผู้ใช้</h2>
+<div class="mb-4">
+  <h2 class="text-2xl font-bold text-gray-700">
+    Admin: <?= $tab==='requests' ? 'ตรวจสอบคำร้อง' : 'จัดการบัญชีผู้ใช้' ?>
+  </h2>
+</div>
 
-    <div class="flex justify-end gap-2 mb-4">
-      <button class="px-4 py-2 rounded-lg bg-blue-600 text-white hover:bg-blue-700"
-              onclick="document.getElementById('dlgAdd').showModal();">+ เพิ่มบัญชีผู้ใช้ใหม่</button>
-      <a class="px-4 py-2 rounded-lg bg-cyan-500 text-white hover:bg-cyan-600" href="registration_review.php">ตรวจสอบคำร้อง</a>
-    </div>
 
     <?php if(!empty($_SESSION['flash'])): ?>
       <div class="mb-4 px-4 py-2 rounded-lg bg-green-100 text-green-800">
@@ -151,52 +217,110 @@ if ($r = $conn->query("SELECT user_type_ID, type_name FROM user_type ORDER BY us
       </div>
     <?php endif; ?>
 
-    <table class="w-full border-collapse">
-      <thead>
-        <tr class="bg-gray-600 text-white">
-          <th class="px-4 py-2">UID</th>
-          <th class="px-4 py-2">Username</th>
-          <th class="px-4 py-2">Email</th>
-          <th class="px-4 py-2">สิทธิ์ผู้ใช้งาน</th>
-          <th class="px-4 py-2">จัดการ</th>
-        </tr>
-      </thead>
-      <tbody>
-        <?php if(!$users): ?>
-          <tr><td colspan="5" class="text-center text-gray-500 py-4">ยังไม่มีผู้ใช้</td></tr>
-        <?php else: foreach($users as $u): ?>
-          <tr class="border-b">
-            <td class="px-4 py-2"><?= (int)$u['UID'] ?></td>
-            <td class="px-4 py-2"><?= h($u['username']) ?></td>
-            <td class="px-4 py-2"><?= h($u['email']) ?></td>
-            <td class="px-4 py-2">
-              <span class="px-3 py-1 rounded-full bg-indigo-100 text-indigo-700">
-                <?= h($u['type_name'] ?? ('ID:'.$u['user_type_ID'])) ?>
-              </span>
-            </td>
-            <td class="px-4 py-2">
-              <div class="flex gap-2">
-                <button class="px-3 py-1 rounded-lg bg-gray-600 text-white hover:bg-gray-700"
-                        onclick='openEdit(<?= (int)$u["UID"] ?>,<?= json_encode($u["username"]) ?>,<?= json_encode($u["email"]) ?>,<?= (int)$u["user_type_ID"] ?>)'>แก้ไข</button>
-                <form method="post" onsubmit="return confirm('ลบผู้ใช้นี้?');">
-                  <input type="hidden" name="action" value="delete_user">
-                  <input type="hidden" name="UID" value="<?= (int)$u['UID'] ?>">
-                  <button class="px-3 py-1 rounded-lg bg-red-500 text-white hover:bg-red-600">ลบ</button>
-                </form>
-                <button class="px-3 py-1 rounded-lg bg-amber-400 text-white hover:bg-amber-500"
-                        onclick="openReset(<?= (int)$u['UID'] ?>)">รีเซ็ตรหัสผ่าน</button>
-              </div>
-            </td>
-          </tr>
-        <?php endforeach; endif; ?>
-      </tbody>
-    </table>
+    <?php if ($tab==='users'): ?>
+      <div class="flex justify-end gap-2 mb-4">
+        <button class="px-4 py-2 rounded-lg bg-blue-600 text-white hover:bg-blue-700"
+                onclick="document.getElementById('dlgAdd').showModal();">+ เพิ่มบัญชีผู้ใช้ใหม่</button>
+        <a class="px-4 py-2 rounded-lg bg-cyan-500 text-white hover:bg-cyan-600" href="?tab=requests">ตรวจสอบคำร้อง</a>
+      </div>
 
-    <div class="text-right mt-4 space-x-4">
-      <a href="suggestion.php" class="text-blue-600 hover:underline">เสนอแนะเกี่ยวกับระบบ</a> |
-      <a href="User_manual.php" class="text-blue-600 hover:underline">คู่มือการใช้งาน</a> |
-      <a href="feature_editing_history.php" class="text-blue-600 hover:underline">ประวัติการแก้ไข</a>
-    </div>
+      <table class="w-full border-collapse">
+        <thead>
+          <tr class="bg-gray-600 text-white">
+            <th class="px-4 py-2">UID</th>
+            <th class="px-4 py-2">Username</th>
+            <th class="px-4 py-2">Email</th>
+            <th class="px-4 py-2">สิทธิ์ผู้ใช้งาน</th>
+            <th class="px-4 py-2">จัดการ</th>
+          </tr>
+        </thead>
+        <tbody>
+          <?php if(!$users): ?>
+            <tr><td colspan="5" class="text-center text-gray-500 py-4">ยังไม่มีผู้ใช้</td></tr>
+          <?php else: foreach($users as $u): ?>
+            <tr class="border-b">
+              <td class="px-4 py-2"><?= (int)$u['UID'] ?></td>
+              <td class="px-4 py-2"><?= h($u['username']) ?></td>
+              <td class="px-4 py-2"><?= h($u['email']) ?></td>
+              <td class="px-4 py-2">
+                <span class="px-3 py-1 rounded-full bg-indigo-100 text-indigo-700">
+                  <?= h($u['type_name'] ?? ('ID:'.$u['user_type_ID'])) ?>
+                </span>
+              </td>
+              <td class="px-4 py-2">
+                <div class="flex gap-2">
+                  <button class="px-3 py-1 rounded-lg bg-gray-600 text-white hover:bg-gray-700"
+                          onclick='openEdit(<?= (int)$u["UID"] ?>,<?= json_encode($u["username"]) ?>,<?= json_encode($u["email"]) ?>,<?= (int)$u["user_type_ID"] ?>)'>แก้ไข</button>
+                  <form method="post" onsubmit="return confirm('ลบผู้ใช้นี้?');">
+                    <input type="hidden" name="action" value="delete_user">
+                    <input type="hidden" name="UID" value="<?= (int)$u['UID'] ?>">
+                    <button class="px-3 py-1 rounded-lg bg-red-500 text-white hover:bg-red-600">ลบ</button>
+                  </form>
+                  <button class="px-3 py-1 rounded-lg bg-amber-400 text-white hover:bg-amber-500"
+                          onclick="openReset(<?= (int)$u['UID'] ?>)">รีเซ็ตรหัสผ่าน</button>
+                </div>
+              </td>
+            </tr>
+          <?php endforeach; endif; ?>
+        </tbody>
+      </table>
+
+      <div class="text-right mt-4 space-x-4">
+        <a href="suggestion.php" class="text-blue-600 hover:underline">เสนอแนะเกี่ยวกับระบบ</a> |
+        <a href="User_manual.php" class="text-blue-600 hover:underline">คู่มือการใช้งาน</a> |
+        <a href="feature_editing_history.php" class="text-blue-600 hover:underline">ประวัติการแก้ไข</a>
+      </div>
+
+    <?php else: // --- tab=requests --- ?>
+      <div class="mb-4 text-gray-600">คำร้องสมัครสมาชิกจากตาราง <code>registration_request</code></div>
+
+      <table class="w-full border-collapse">
+        <thead>
+          <tr class="bg-gray-600 text-white">
+            <th class="px-4 py-2">รหัสคำร้อง</th>
+            <th class="px-4 py-2">Username</th>
+            <th class="px-4 py-2">Email</th>
+            <th class="px-4 py-2">สิทธิ์ที่ขอ</th>
+            <th class="px-4 py-2">วันที่ขอ</th>
+            <th class="px-4 py-2">จัดการ</th>
+          </tr>
+        </thead>
+        <tbody>
+          <?php if(!$requests): ?>
+            <tr><td colspan="6" class="text-center text-gray-500 py-4">ยังไม่มีคำร้อง</td></tr>
+          <?php else: foreach($requests as $r): ?>
+            <tr class="border-b">
+              <td class="px-4 py-2"><?= (int)$r['request_ID'] ?></td>
+              <td class="px-4 py-2"><?= h($r['username']) ?></td>
+              <td class="px-4 py-2"><?= h($r['email']) ?></td>
+              <td class="px-4 py-2">
+                <span class="px-3 py-1 rounded-full bg-sky-100 text-sky-700">
+                  <?= h($r['type_name'] ?? ('ID:'.$r['request_user_type_ID'])) ?>
+                </span>
+              </td>
+              <td class="px-4 py-2"><?= h($r['request_date']) ?></td>
+              <td class="px-4 py-2">
+                <div class="flex gap-2">
+                  <form method="post" class="flex items-center gap-2" onsubmit="return confirm('อนุมัติคำร้องนี้?');">
+                    <input type="hidden" name="action" value="approve_request">
+                    <input type="hidden" name="request_ID" value="<?= (int)$r['request_ID'] ?>">
+                    <input type="password" name="temp_password" placeholder="รหัสเริ่มต้น" required
+                           class="border rounded px-2 py-1">
+                    <button class="px-3 py-1 rounded-lg bg-blue-600 text-white hover:bg-blue-700">อนุมัติ</button>
+                  </form>
+                  <form method="post" onsubmit="return confirm('ลบคำร้องนี้?');">
+                    <input type="hidden" name="action" value="delete_request">
+                    <input type="hidden" name="request_ID" value="<?= (int)$r['request_ID'] ?>">
+                    <button class="px-3 py-1 rounded-lg bg-red-500 text-white hover:bg-red-600">ลบ</button>
+                  </form>
+                </div>
+              </td>
+            </tr>
+          <?php endforeach; endif; ?>
+        </tbody>
+      </table>
+
+    <?php endif; ?>
   </div>
 </div>
 
