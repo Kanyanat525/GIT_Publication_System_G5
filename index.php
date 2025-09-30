@@ -1,7 +1,47 @@
 <?php
+
 // ไฟล์นี้เชื่อมต่อกับฐานข้อมูลผ่าน db_connect.php
 // (ใช้สำหรับ Local Server ที่ตั้งค่า DB_PASSWORD เป็นค่าว่าง)
 include('db_connect.php');
+
+session_start(); // <-- เพิ่ม: เริ่ม session
+
+// เช็คสถานะล็อกอิน
+$isLoggedIn = isset($_SESSION['user_id']); // <-- เพิ่ม
+$username = $isLoggedIn && isset($_SESSION['username']) ? $_SESSION['username'] : '';
+$user_type = '';
+
+if ($isLoggedIn) {
+    $uid = $_SESSION['user_id'];
+    $sql_user = "
+        SELECT ut.type_name 
+        FROM User u
+        LEFT JOIN user_type ut ON u.user_type_ID = ut.user_type_ID
+        WHERE u.UID = '$uid'
+        LIMIT 1
+    ";
+    $res_user = mysqli_query($conn, $sql_user);
+    if ($res_user && mysqli_num_rows($res_user) > 0) {
+        $row_user = mysqli_fetch_assoc($res_user);
+        $user_type = $row_user['type_name']; // เช่น 'teacher' หรือ 'officer'
+    }
+}
+
+// กำหนดลิงก์โปรไฟล์ตาม user_type
+$profile_link = "#"; // default
+if ($isLoggedIn) {
+    switch($user_type) {
+        case 'Lecturer':
+            $profile_link = "teacher_profile.php";
+            break;
+        case 'Officer':
+            $profile_link = "officer_home.php";
+            break;
+        default:
+            $profile_link = "#";
+            break;
+    }
+}
 
 // ดึงปีปัจจุบันสำหรับการค้นหาเริ่มต้น
 $current_year = date("Y") + 543; // ปีพ.ศ.
@@ -192,18 +232,31 @@ function getCategoryIcon($type) {
 
             <!-- User Actions (ปุ่มลงทะเบียน/เข้าสู่ระบบ) -->
             <div class="flex items-center space-x-4">
-                <!-- ลงทะเบียน (Secondary Button Style) -->
-                <a href="#" class="px-3 py-1.5 font-semibold text-blue-600 border border-blue-600 rounded-lg 
-                                  transition duration-150 ease-in-out hover:bg-blue-600 hover:text-white 
-                                  focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-opacity-50">
+          <?php if ($isLoggedIn): ?> <!-- <-- เปลี่ยน: เช็คล็อกอิน -->
+                    <a href="<?php echo $profile_link; ?>" class="px-3 py-1.5 font-semibold text-blue-600 border border-blue-600 rounded-lg 
+   transition duration-150 ease-in-out hover:bg-blue-600 hover:text-white 
+   focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-opacity-50">
+    โปรไฟล์
+</a>
+
+                    <a href="logout.php" class="px-4 py-1.5 font-semibold text-white bg-blue-600 border border-blue-600 rounded-lg 
+                                      transition duration-150 ease-in-out hover:bg-blue-700 hover:border-blue-700 
+                                      focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-opacity-50">
+                        ออกจากระบบ
+                    </a>
+                <?php else: ?> <!-- <-- เปลี่ยน: แสดงปุ่มเดิมเมื่อไม่ได้ล็อกอิน -->
+                    <a href="request_acc.php" class="px-3 py-1.5 font-semibold text-blue-600 border border-blue-600 rounded-lg 
+                                      transition duration-150 ease-in-out hover:bg-blue-600 hover:text-white 
+                                      focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-opacity-50">
                     ส่งคำร้องขอบัญชี
                 </a>
                 <!-- เข้าสู่ระบบ (Primary Button Style) -->
-                <a href="#" class="px-4 py-1.5 font-semibold text-white bg-blue-600 border border-blue-600 rounded-lg 
+                <a href="login.php" class="px-4 py-1.5 font-semibold text-white bg-blue-600 border border-blue-600 rounded-lg 
                                   transition duration-150 ease-in-out hover:bg-blue-700 hover:border-blue-700 
                                   focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-opacity-50">
                     เข้าสู่ระบบ
                 </a>
+                <?php endif; ?> <!-- <-- เปลี่ยน: ปิด if -->
             </div>
         </div>
     </div>
@@ -323,9 +376,9 @@ function getCategoryIcon($type) {
                     <p class="text-xl text-gray-500">ไม่พบผลงานตีพิมพ์ที่ตรงกับเงื่อนไขการค้นหาของคุณ</p>
                 </div>
             <?php endif; ?>
-<!-- หลังจบผลการค้นหา -->
-<div class="flex justify-end mt-4 space-x-2 items-center">
-    <a href="feedback.php" 
+            <!-- หลังจบผลการค้นหา -->
+<div class="flex justify-end mt-4 space-x-2">
+    <a href="suggestion.php" 
        class="text-blue-600 hover:text-blue-800 font-semibold flex items-center transition duration-150 underline">
         <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" 
              stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" 
@@ -334,8 +387,7 @@ function getCategoryIcon($type) {
         </svg>
         เสนอแนะเกี่ยวกับระบบ
     </a>
-
-    <span class="text-gray-400">|</span>
+ <span class="text-gray-400">|</span>
 
     <a href="manual.php" 
        class="text-blue-600 hover:text-blue-800 font-semibold flex items-center transition duration-150 underline">
@@ -348,9 +400,6 @@ function getCategoryIcon($type) {
         คู่มือการใช้งาน
     </a>
 </div>
-
-
-        </div>
 
     </main>
     <!-- Modal -->
@@ -382,30 +431,6 @@ function getCategoryIcon($type) {
     
 </div>
 <script>
-function showModal(title, abstract, authors, year) {
-    document.getElementById('modalTitle').innerText = title;
-    document.getElementById('modalAbstract').innerText = abstract;
-    document.getElementById('modalAuthors').innerText = "ผู้แต่ง: " + authors;
-    document.getElementById('modalYear').innerText = "ปี: " + year;
-    document.getElementById('modal').classList.remove('hidden');
-    document.getElementById('modal').classList.add('flex');
-    let downloadBtn = document.getElementById('modalDownload');
-    if (file && file !== '') {
-        downloadBtn.href = 'uploads/' + file; // สมมติไฟล์เก็บในโฟลเดอร์ uploads/
-        downloadBtn.style.display = 'inline-block';
-    } else {
-        downloadBtn.style.display = 'none';
-    }
-
-}
-
-function closeModal() {
-    document.getElementById('modal').classList.add('hidden');
-    document.getElementById('modal').classList.remove('flex');
-}
-</script>
-
-<script>
 function showModal(title, abstract, authors, year, file) {
     document.getElementById('modalTitle').innerText = title;
     document.getElementById('modalAbstract').innerText = abstract;
@@ -422,6 +447,11 @@ function showModal(title, abstract, authors, year, file) {
     } else {
         downloadBtn.style.display = 'none';
     }
+}
+
+function closeModal() {
+    document.getElementById('modal').classList.add('hidden');
+    document.getElementById('modal').classList.remove('flex');
 }
 </script>
 
