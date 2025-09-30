@@ -3,7 +3,7 @@
 -- https://www.phpmyadmin.net/
 --
 -- Host: 127.0.0.1
--- Generation Time: Sep 28, 2025 at 12:52 PM
+-- Generation Time: Sep 30, 2025 at 02:36 PM
 -- Server version: 10.4.32-MariaDB
 -- PHP Version: 8.2.12
 
@@ -175,6 +175,20 @@ INSERT INTO `pub_keyword` (`pub_ID`, `key_ID`) VALUES
 -- --------------------------------------------------------
 
 --
+-- Table structure for table `registration_request`
+--
+
+CREATE TABLE `registration_request` (
+  `request_ID` int(11) NOT NULL,
+  `username` varchar(50) NOT NULL,
+  `email` varchar(100) NOT NULL,
+  `request_user_type_ID` int(11) NOT NULL,
+  `request_date` timestamp NOT NULL DEFAULT current_timestamp()
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+-- --------------------------------------------------------
+
+--
 -- Table structure for table `user`
 --
 
@@ -213,8 +227,7 @@ CREATE TABLE `user_type` (
 INSERT INTO `user_type` (`user_type_ID`, `type_name`) VALUES
 (1, 'Admin'),
 (2, 'Officer'),
-(3, 'Lecturer'),
-(4, 'Student');
+(3, 'Lecturer');
 
 --
 -- Indexes for dumped tables
@@ -275,6 +288,15 @@ ALTER TABLE `pub_keyword`
   ADD KEY `fk_pk_key` (`key_ID`);
 
 --
+-- Indexes for table `registration_request`
+--
+ALTER TABLE `registration_request`
+  ADD PRIMARY KEY (`request_ID`),
+  ADD UNIQUE KEY `username` (`username`),
+  ADD UNIQUE KEY `email` (`email`),
+  ADD KEY `request_user_type_ID` (`request_user_type_ID`);
+
+--
 -- Indexes for table `user`
 --
 ALTER TABLE `user`
@@ -329,6 +351,12 @@ ALTER TABLE `publicationtype`
   MODIFY `type_ID` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=5;
 
 --
+-- AUTO_INCREMENT for table `registration_request`
+--
+ALTER TABLE `registration_request`
+  MODIFY `request_ID` int(11) NOT NULL AUTO_INCREMENT;
+
+--
 -- AUTO_INCREMENT for table `user`
 --
 ALTER TABLE `user`
@@ -376,6 +404,12 @@ ALTER TABLE `pub_author`
 ALTER TABLE `pub_keyword`
   ADD CONSTRAINT `fk_pk_key` FOREIGN KEY (`key_ID`) REFERENCES `keyword` (`key_ID`) ON DELETE CASCADE ON UPDATE CASCADE,
   ADD CONSTRAINT `fk_pk_pub` FOREIGN KEY (`pub_ID`) REFERENCES `publication` (`pub_ID`) ON DELETE CASCADE ON UPDATE CASCADE;
+
+--
+-- Constraints for table `registration_request`
+--
+ALTER TABLE `registration_request`
+  ADD CONSTRAINT `registration_request_ibfk_1` FOREIGN KEY (`request_user_type_ID`) REFERENCES `user_type` (`user_type_ID`);
 
 --
 -- Constraints for table `user`
