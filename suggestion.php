@@ -1,4 +1,5 @@
 <?php
+session_start();
 include('db_connect.php');
 
 $success = "";
@@ -28,12 +29,44 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
         body {
             font-family: 'Kanit', sans-serif;
             background: linear-gradient(to bottom, #dceeff, #b7dbf7);
+            margin: 0;
+            min-height: 100vh;
+        }
+
+        /* 🔹 Navbar */
+        .navbar {
+            background: #fff;
+            padding: 15px 40px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 1px solid #e5e7eb;
+            position: sticky;
+            top: 0;
+            z-index: 1000;
+        }
+        .system-title {
+            font-size: 22px;
+            font-weight: 700;
+            color: #1d4ed8;
+            text-decoration: none;
+        }
+        .logout-btn {
+            background:#ef4444;
+            color:#fff;
+            padding:8px 16px;
+            border-radius:6px;
+            text-decoration:none;
+            font-weight:500;
+            transition:background .2s;
+        }
+        .logout-btn:hover { background:#dc2626; }
+
+        /* 🔹 Container */
+        .content {
             display: flex;
             justify-content: center;
-            align-items: flex-start;
-            padding-top: 50px;
-            min-height: 100vh;
-            margin: 0;
+            padding: 50px 20px;
         }
         .container {
             background: #fff;
@@ -42,11 +75,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
             box-shadow: 0 4px 12px rgba(0,0,0,0.15);
             width: 500px;
         }
-        h2 {
-            text-align: center;
-            margin: 0 0 30px 0;
-            font-weight: 600;
-        }
+        h2 { text-align: center; margin: 0 0 30px 0; font-weight: 600; }
         .form-group { margin-bottom: 20px; }
         label { font-weight: 500; display: block; margin-bottom: 8px; }
         input, textarea {
@@ -81,6 +110,15 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
     </style>
 </head>
 <body>
+
+<!-- 🔹 Navbar -->
+<div class="navbar">
+    <a href="index.php" class="system-title">ระบบบริหารจัดการผลงานตีพิมพ์</a>
+    <a href="?logout=1" class="logout-btn">ออกจากระบบ</a>
+</div>
+
+<!-- 🔹 Content -->
+<div class="content">
     <div class="container">
         <h2>เสนอแนะเกี่ยวกับระบบ</h2>
         <form method="post">
@@ -102,5 +140,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
         <div class="success"><?php echo $success; ?></div>
         <?php endif; ?>
     </div>
+</div>
+
 </body>
 </html>
