@@ -1,375 +1,272 @@
 <?php
+// admin.php — ดีไซน์คงเดิม + ตัวแปร/ชื่อคอลัมน์ตรงสคีมาตาม publication_db.sql
+// ตารางที่ใช้: user, user_type
+
+session_start();
 require_once 'db_connect.php';
 
-/* ---- จัดการออกจากระบบบนหน้านี้ (ไม่ใช้ logout.php) ---- */
-session_start();
-if (isset($_GET['logout'])) {
-    $_SESSION = [];
-    if (ini_get('session.use_cookies')) {
-        $p = session_get_cookie_params();
-        setcookie(session_name(), '', time() - 42000, $p['path'], $p['domain'], $p['secure'], $p['httponly']);
-    }
-    session_destroy();
-    header('Location: index.php');
-    exit;
+if ($conn->connect_error) {
+  die("DB connect error");
 }
 
-/* ปุ่มย้อนกลับ */
-function backHref($default='index.php'){
-    return !empty($_GET['return']) ? $_GET['return'] : $default;
-}
+function h($s){ return htmlspecialchars((string)$s, ENT_QUOTES, 'UTF-8'); }
+function flash($msg){ $_SESSION['flash']=$msg; }
+function back(){ header('Location: admin.php'); exit; }
 
-function esc($s){
-    return htmlspecialchars($s ?? '', ENT_QUOTES, 'UTF-8');
-}
-
-function back_to_self(){
-    header('Location: '. strtok($_SERVER['REQUEST_URI'],'?'));
-    exit;
-}
-
-$errors = [];
-$notices = [];
-
-
-/* ===================== Actions ===================== */
-if($_SERVER['REQUEST_METHOD']==='POST'){
+if ($_SERVER['REQUEST_METHOD']==='POST') {
   $action = $_POST['action'] ?? '';
+  if ($action==='add_user') {
+    $username = trim($_POST['username'] ?? '');
+    $email    = trim($_POST['email'] ?? '');
+    $pwd_raw  = trim($_POST['password'] ?? '');
+    $user_type_ID = (int)($_POST['user_type_ID'] ?? 0);
 
-  if($action==='add_user'){
-    $username=trim($_POST['username']??'');
-    $email=trim($_POST['email']??'');
-    $role=trim($_POST['role']??'Lecturer');
-    $pwd=$_POST['password']??'';
-    if($username===''||$email===''||$role===''){ $errors[]='กรอกข้อมูลให้ครบถ้วน'; back_to_self(); }
-    $hash = $pwd!=='' ? password_hash($pwd, PASSWORD_DEFAULT) : null;
-
-    $stmt=$conn->prepare("INSERT INTO users(username,email,role,password_hash) VALUES(?,?,?,?)");
-    if(!$stmt){ $errors[]=$conn->error; back_to_self(); }
-    $stmt->bind_param('ssss',$username,$email,$role,$hash);
-    if($stmt->execute()) $notices[]='เพิ่มผู้ใช้เรียบร้อย'; else $errors[]=$stmt->error;
-    $stmt->close(); back_to_self();
+    if ($username==='' || $email==='' || $pwd_raw==='' || $user_type_ID<=0) {
+      flash('กรอกข้อมูลให้ครบ'); back();
+    }
+    $pwd_hash = password_hash($pwd_raw, PASSWORD_BCRYPT);
+    $stmt = $conn->prepare("INSERT INTO user (username,password,email,user_type_ID) VALUES (?,?,?,?)");
+    $stmt->bind_param('sssi', $username, $pwd_hash, $email, $user_type_ID);
+    if(!$stmt->execute()){ flash('เพิ่มผู้ใช้ไม่สำเร็จ'); }
+    else { flash('เพิ่มผู้ใช้สำเร็จ'); }
+    $stmt->close(); back();
   }
 
-  if($action==='update_user'){
-    $id=intval($_POST['id']??0);
-    $username=trim($_POST['username']??'');
-    $email=trim($_POST['email']??'');
-    $role=trim($_POST['role']??'');
-    if($id<=0||$username===''||$email===''||$role===''){ $errors[]='ข้อมูลไม่ครบถ้วน'; back_to_self(); }
+  if ($action==='update_user') {
+    $UID  = (int)($_POST['UID'] ?? 0);
+    $username = trim($_POST['username'] ?? '');
+    $email    = trim($_POST['email'] ?? '');
+    $user_type_ID = (int)($_POST['user_type_ID'] ?? 0);
 
-    $stmt=$conn->prepare("UPDATE users SET username=?, email=?, role=? WHERE id=?");
-    if(!$stmt){ $errors[]=$conn->error; back_to_self(); }
-    $stmt->bind_param('sssi',$username,$email,$role,$id);
-    if($stmt->execute()) $notices[]='บันทึกการแก้ไขแล้ว'; else $errors[]=$stmt->error;
-    $stmt->close(); back_to_self();
+    if ($UID<=0 || $username==='' || $email==='' || $user_type_ID<=0) {
+      flash('ข้อมูลไม่ครบ'); back();
+    }
+    $stmt = $conn->prepare("UPDATE user SET username=?, email=?, user_type_ID=? WHERE UID=?");
+    $stmt->bind_param('ssii', $username, $email, $user_type_ID, $UID);
+    $ok = $stmt->execute();
+    $stmt->close();
+    flash($ok?'บันทึกแล้ว':'บันทึกไม่สำเร็จ'); back();
   }
 
-  if($action==='delete_user'){
-    $id=intval($_POST['id']??0);
-    if($id<=0){ $errors[]='รหัสผู้ใช้ไม่ถูกต้อง'; back_to_self(); }
-    $stmt=$conn->prepare("DELETE FROM users WHERE id=?");
-    if(!$stmt){ $errors[]=$conn->error; back_to_self(); }
-    $stmt->bind_param('i',$id);
-    if($stmt->execute()) $notices[]='ลบผู้ใช้เรียบร้อย'; else $errors[]=$stmt->error;
-    $stmt->close(); back_to_self();
+  if ($action==='delete_user') {
+    $UID = (int)($_POST['UID'] ?? 0);
+    if($UID>0){
+      $stmt=$conn->prepare("DELETE FROM user WHERE UID=?");
+      $stmt->bind_param('i',$UID);
+      $ok=$stmt->execute();
+      $stmt->close();
+      flash($ok?'ลบแล้ว':'ลบไม่สำเร็จ');
+    }
+    back();
   }
 
-  if($action==='reset_password'){
-    $id=intval($_POST['id']??0);
-    if($id<=0){ $errors[]='รหัสผู้ใช้ไม่ถูกต้อง'; back_to_self(); }
-    $temp = bin2hex(random_bytes(5)); // 10 ตัวอักษร
-    $hash = password_hash($temp, PASSWORD_DEFAULT);
-    $stmt=$conn->prepare("UPDATE users SET password_hash=? WHERE id=?");
-    if(!$stmt){ $errors[]=$conn->error; back_to_self(); }
-    $stmt->bind_param('si',$hash,$id);
-    if($stmt->execute()) $notices[]='รีเซ็ตรหัสผ่านสำเร็จ • รหัสชั่วคราว: <code>'.esc($temp).'</code>';
-    else $errors[]=$stmt->error;
-    $stmt->close(); back_to_self();
+  if ($action==='reset_password') {
+    $UID = (int)($_POST['UID'] ?? 0);
+    $new = trim($_POST['new_password'] ?? '');
+    if($UID>0 && $new!==''){
+      $hash = password_hash($new, PASSWORD_BCRYPT);
+      $stmt = $conn->prepare("UPDATE user SET password=? WHERE UID=?");
+      $stmt->bind_param('si',$hash,$UID);
+      $ok=$stmt->execute();
+      $stmt->close();
+      flash($ok?'รีเซ็ตรหัสผ่านแล้ว':'รีเซ็ตรหัสผ่านไม่สำเร็จ');
+    } else { flash('ระบุรหัสผ่านใหม่'); }
+    back();
   }
 }
 
-/* ===================== Query users ===================== */
-$users=[];
-$res=$conn->query("SELECT id,username,email,role FROM users ORDER BY id");
-if($res){ while($r=$res->fetch_assoc()) $users[]=$r; $res->free(); }
-else { $errors[]="คิวรีล้มเหลว/ไม่พบตาราง users: ".$conn->error; }
+if(isset($_GET['logout'])){
+  $_SESSION = [];
+  if (ini_get('session.use_cookies')) {
+    $p = session_get_cookie_params();
+    setcookie(session_name(), '', time()-42000, $p['path'],$p['domain'],$p['secure'],$p['httponly']);
+  }
+  session_destroy();
+  header('Location: index.php'); exit;
+}
+
+$users = [];
+$sql = "SELECT u.UID, u.username, u.email, u.user_type_ID, ut.type_name
+        FROM user u LEFT JOIN user_type ut ON u.user_type_ID = ut.user_type_ID
+        ORDER BY u.UID ASC";
+if ($res = $conn->query($sql)) {
+  while($row=$res->fetch_assoc()) $users[]=$row;
+  $res->close();
+}
+
+$userTypes = [];
+if ($r = $conn->query("SELECT user_type_ID, type_name FROM user_type ORDER BY user_type_ID")) {
+  while($t=$r->fetch_assoc()) $userTypes[]=$t;
+  $r->close();
+}
 ?>
 <!doctype html>
 <html lang="th">
 <head>
 <meta charset="utf-8">
-<title>จัดการบัญชีผู้ใช้</title>
-<meta name="viewport" content="width=device-width,initial-scale=1">
-<style>
-:root{
-  --bg1:#eaf1ff; --bg2:#cfe0ff; --card:#ffffff; --muted:#94a3b8; --text:#0f172a;
-  --head:#4b5563; --headText:#e5e7eb; --line:#e5e7eb;
-  --blue:#2563eb; --blue-700:#1d4ed8; --gray:#6b7280; --red:#e11d48; --orange:#f59e0b;
-}
-*{box-sizing:border-box}
-body{
-  margin:0; font-family: ui-sans-serif,system-ui,Segoe UI,Roboto,Arial; color:var(--text);
-  background: linear-gradient(180deg,var(--bg1),var(--bg2)) fixed;
-}
-
-/* Topbar */
-.topbar{
-  background:#ffffffcc; backdrop-filter: blur(6px);
-  border-bottom:1px solid #dbe3ff; padding:14px 24px;
-  display:flex; align-items:center; justify-content:space-between;
-}
-.brand{ font-weight:700; color:#1e3a8a; text-decoration:none; }
-.brand:hover{ color:#1d4ed8; }
-.brand:visited{ color:#1e3a8a; }
-
-.actions{ display:flex; gap:12px; align-items:center; }
-
-.btn-outline{
-  background:#fff; color:var(--blue);
-  border:1px solid #93c5fd; border-radius:10px;
-  padding:10px 16px; font-weight:600; text-decoration:none;
-}
-.btn-outline:hover{ background:#eef2ff; }
-
-.logout{
-  background:#ef4444; color:#fff; border:none; padding:10px 16px;
-  border-radius:10px; cursor:pointer; text-decoration:none;
-}
-
-/* Layout */
-.container{ max-width:1200px; margin:28px auto; padding:0 20px; }
-.card{ background:var(--card); border-radius:18px; box-shadow:0 10px 30px rgba(30,64,175,.12); border:1px solid #e6ecff; padding:24px; }
-.header-line{ display:flex; align-items:center; justify-content:space-between; margin-bottom:16px; position:relative; }
-.h-title{ font-size:28px; font-weight:800; margin:0 auto; text-align:center; }
-.header-actions{ display:flex; gap:10px; position:absolute; right:0; }
-.btn{ appearance:none; border:none; cursor:pointer; padding:10px 14px; border-radius:12px; font-weight:600; font-size:14px; }
-.btn.blue{ background:var(--blue); color:#fff; } .btn.blue:hover{ background:var(--blue-700); }
-.btn.gray{ background:var(--gray); color:#fff; } .btn.red{ background:var(--red); color:#fff; } .btn.orange{ background:var(--orange); color:#111827; }
-
-/* Table */
-.table{ width:100%; border-collapse:separate; border-spacing:0; }
-.table tbody td{ padding:16px; border-bottom:1px solid var(--line); font-size:15px; }
-.table tbody tr:nth-child(odd){ background:#f8fbff; }
-.cell-actions{ display:flex; gap:10px; flex-wrap:wrap; }
-.tag{ display:inline-block; background:#eef2ff; border:1px dashed #c7d2fe; color:#312e81; padding:5px 10px; border-radius:999px; font-size:12px; }
-
-/* Pill Header */
-.pill-head th{ padding:0; background:transparent; border:0; }
-.pill-head th .pill{
-  background:#5d6770; color:#fff; font-weight:800; text-align:center;
-  padding:12px 16px; border-radius:12px; box-shadow: inset 0 0 0 1px rgba(255,255,255,.06);
-}
-.pill-head th:not(:last-child) .pill{ margin-right:12px; }
-
-/* Column Width */
-.col-uid{ width:90px; }
-.col-role{ width:160px; }
-.col-actions{ width:300px; }
-
-* /* Notice & Error */
-.notice{ margin:12px 0; padding:12px 14px; border-radius:12px; background:#ecfdf5; border:1px solid #a7f3d0; color:#065f46; }
-.error{ margin:12px 0; padding:12px 14px; border-radius:12px; background:#fef2f2; border:1px solid #fecaca; color:#7f1d1d; }
-
-/* Modal */
-.modal{ position:fixed; inset:0; background:rgba(0,0,0,.45); display:none; align-items:center; justify-content:center; padding:16px; }
-.modal.open{ display:flex; }
-.modal-card{ width:100%; max-width:560px; background:#fff; border-radius:16px; padding:18px; border:1px solid #e5e7eb; }
-.modal-head{ display:flex; align-items:center; justify-content:space-between; margin-bottom:10px; }
-.modal-title{ font-weight:800; font-size:18px; }
-.input,.select{ width:100%; padding:11px 12px; border:1px solid #cbd5e1; border-radius:12px; font-size:14px; }
-.form-grid{ display:grid; gap:10px; }
-.form-actions{ display:flex; gap:10px; justify-content:flex-end; margin-top:8px; }
-code{ background:#f1f5f9; padding:2px 6px; border-radius:6px; }
-
-/* Link Buttons (ชิดขวา) */
-.link-buttons{
-  margin-top:20px;
-  display:flex;
-  gap:12px;
-  justify-content:flex-end; /* ชิดขวา */
-  align-items:center;
-}
-.link-btn{
-  color:#2563eb;
-  font-size:16px;
-  font-weight:500;
-  text-decoration:underline;
-  display:flex;
-  align-items:center;
-  gap:6px;
-}
-.link-btn:hover{ color:#1d4ed8; }
-.divider{ color:#2563eb; }
-
-@media (max-width:640px){
-  .header-actions{ position:static; margin-left:auto; }
-  .h-title{ font-size:22px; }
-}
-</style>
+<title>Admin: จัดการบัญชีผู้ใช้</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="https://cdn.tailwindcss.com"></script>
 </head>
-<body>
+<body class="min-h-screen bg-gradient-to-b from-white via-blue-200 to-blue-100">
 
-<!-- Topbar -->
-<div class="topbar">
-  <!-- ชื่อระบบ: คลิกกลับหน้าแรก -->
-  <a href="index.php" class="brand">ระบบบริหารจัดการผลงานตีพิมพ์</a>
-
-  <!-- ปุ่มด้านขวา -->
-  <div class="actions">
-    <!-- ย้อนกลับ: มี referrer/back stack จะ back; ถ้าไม่มีไป index.php -->
+<header class="bg-white shadow">
+  <div class="w-full px-6 py-4 flex items-center justify-between">
+    <!-- หัวข้อ -->
     <a href="index.php"
-       onclick="if (document.referrer && history.length > 1) { history.back(); return false; }"
-       class="btn-outline">ย้อนกลับ</a>
+       class="text-2xl font-bold text-blue-700 tracking-wider hover:text-blue-800 focus:outline-none focus:ring-2 focus:ring-blue-300 rounded">
+      ระบบบริหารจัดการผลงานตีพิมพ์
+    </a>
 
-    <!-- ออกจากระบบบนหน้านี้เลย (ไม่ใช้ logout.php) -->
-    <a href="?logout=1" class="logout">ออกจากระบบ</a>
+    <div class="flex items-center gap-3">
+      <!-- ปุ่มย้อนกลับ -->
+      <a href="index.php"
+         onclick="if (document.referrer) { history.back(); return false; }"
+         class="px-3 py-1.5 rounded-lg border border-blue-300 bg-white text-blue-700 hover:bg-blue-50">
+        ย้อนกลับ
+      </a>
+
+      <!-- ปุ่มออกจากระบบ -->
+      <a href="?logout=1"
+         class="px-4 py-1.5 rounded-lg bg-red-600 text-white hover:bg-red-700">
+        ออกจากระบบ
+      </a>
+    </div>
   </div>
-</div>
+</header>
 
-<div class="container">
-  <div class="card">
-    <div class="header-line">
-      <h2 class="h-title">Admin: จัดการบัญชีผู้ใช้</h2>
-      <div class="header-actions">
-        <button class="btn blue" id="btnAdd">+ เพิ่มบัญชีผู้ใช้ใหม่</button>
-        <a href="role_requests.php" class="btn blue" style="text-decoration:none;">ตรวจสอบคำร้อง</a>
-      </div>
+<div class="max-w-6xl mx-auto p-6">
+  <div class="bg-white shadow rounded-2xl p-6">
+    <h2 class="text-2xl font-bold text-gray-700 mb-4">Admin: จัดการบัญชีผู้ใช้</h2>
+
+    <div class="flex justify-end gap-2 mb-4">
+      <button class="px-4 py-2 rounded-lg bg-blue-600 text-white hover:bg-blue-700"
+              onclick="document.getElementById('dlgAdd').showModal();">+ เพิ่มบัญชีผู้ใช้ใหม่</button>
+      <a class="px-4 py-2 rounded-lg bg-cyan-500 text-white hover:bg-cyan-600" href="registration_review.php">ตรวจสอบคำร้อง</a>
     </div>
 
-    <?php foreach($notices as $n): ?><div class="notice"><?= $n ?></div><?php endforeach; ?>
-    <?php foreach($errors as $e): ?><div class="error"><?= esc($e) ?></div><?php endforeach; ?>
+    <?php if(!empty($_SESSION['flash'])): ?>
+      <div class="mb-4 px-4 py-2 rounded-lg bg-green-100 text-green-800">
+        <?=h($_SESSION['flash']); unset($_SESSION['flash']);?>
+      </div>
+    <?php endif; ?>
 
-    <table class="table">
-      <thead class="pill-head">
-        <tr>
-          <th class="col-uid"><div class="pill">UID</div></th>
-          <th><div class="pill">Username</div></th>
-          <th><div class="pill">Email</div></th>
-          <th class="col-role"><div class="pill">สิทธิ์ผู้ใช้งาน</div></th>
-          <th class="col-actions"><div class="pill">จัดการ</div></th>
+    <table class="w-full border-collapse">
+      <thead>
+        <tr class="bg-gray-600 text-white">
+          <th class="px-4 py-2">UID</th>
+          <th class="px-4 py-2">Username</th>
+          <th class="px-4 py-2">Email</th>
+          <th class="px-4 py-2">สิทธิ์ผู้ใช้งาน</th>
+          <th class="px-4 py-2">จัดการ</th>
         </tr>
       </thead>
       <tbody>
-        <?php if(!count($users)): ?>
-          <tr><td colspan="5" style="text-align:center;color:#64748b;">ไม่มีข้อมูลผู้ใช้</td></tr>
-        <?php endif; ?>
-        <?php foreach($users as $u): ?>
-          <tr>
-            <td><?= (int)$u['id'] ?></td>
-            <td><?= esc($u['username']) ?></td>
-            <td><?= esc($u['email']) ?></td>
-            <td><span class="tag"><?= esc($u['role']) ?></span></td>
-            <td>
-              <div class="cell-actions">
-                <button class="btn gray" data-edit
-                        data-id="<?= (int)$u['id'] ?>"
-                        data-username="<?= esc($u['username']) ?>"
-                        data-email="<?= esc($u['email']) ?>"
-                        data-role="<?= esc($u['role']) ?>">แก้ไข</button>
-
-                <form method="post" onsubmit="return confirm('ยืนยันลบผู้ใช้นี้?')" style="display:inline;">
+        <?php if(!$users): ?>
+          <tr><td colspan="5" class="text-center text-gray-500 py-4">ยังไม่มีผู้ใช้</td></tr>
+        <?php else: foreach($users as $u): ?>
+          <tr class="border-b">
+            <td class="px-4 py-2"><?= (int)$u['UID'] ?></td>
+            <td class="px-4 py-2"><?= h($u['username']) ?></td>
+            <td class="px-4 py-2"><?= h($u['email']) ?></td>
+            <td class="px-4 py-2">
+              <span class="px-3 py-1 rounded-full bg-indigo-100 text-indigo-700">
+                <?= h($u['type_name'] ?? ('ID:'.$u['user_type_ID'])) ?>
+              </span>
+            </td>
+            <td class="px-4 py-2">
+              <div class="flex gap-2">
+                <button class="px-3 py-1 rounded-lg bg-gray-600 text-white hover:bg-gray-700"
+                        onclick='openEdit(<?= (int)$u["UID"] ?>,<?= json_encode($u["username"]) ?>,<?= json_encode($u["email"]) ?>,<?= (int)$u["user_type_ID"] ?>)'>แก้ไข</button>
+                <form method="post" onsubmit="return confirm('ลบผู้ใช้นี้?');">
                   <input type="hidden" name="action" value="delete_user">
-                  <input type="hidden" name="id" value="<?= (int)$u['id'] ?>">
-                  <button class="btn red" type="submit">ลบ</button>
+                  <input type="hidden" name="UID" value="<?= (int)$u['UID'] ?>">
+                  <button class="px-3 py-1 rounded-lg bg-red-500 text-white hover:bg-red-600">ลบ</button>
                 </form>
-
-                <form method="post" onsubmit="return confirm('รีเซ็ตรหัสผ่านและสร้างรหัสชั่วคราวใหม่?')" style="display:inline;">
-                  <input type="hidden" name="action" value="reset_password">
-                  <input type="hidden" name="id" value="<?= (int)$u['id'] ?>">
-                  <button class="btn orange" type="submit">รีเซ็ตรหัสผ่าน</button>
-                </form>
+                <button class="px-3 py-1 rounded-lg bg-amber-400 text-white hover:bg-amber-500"
+                        onclick="openReset(<?= (int)$u['UID'] ?>)">รีเซ็ตรหัสผ่าน</button>
               </div>
             </td>
           </tr>
-        <?php endforeach; ?>
+        <?php endforeach; endif; ?>
       </tbody>
     </table>
-  </div>
 
-  <!-- ปุ่มลิงก์แบบชิดขวา -->
-  <div class="link-buttons">
-  <a href="suggestion.php" class="link-btn">เสนอแนะเกี่ยวกับระบบ</a>
-  <span class="divider">|</span>
-  <a href="User_manual.php" class="link-btn">คู่มือการใช้งาน</a>
-  <span class="divider">|</span>
-  <a href="feature_editing_history.php" class="link-btn">ประวัติการแก้ไข</a>
-</div>
-</div>
-
-<!-- Modal Add -->
-<div class="modal" id="modalAdd">
-  <div class="modal-card">
-    <div class="modal-head">
-      <div class="modal-title">เพิ่มบัญชีผู้ใช้ใหม่</div>
-      <button class="btn gray" data-close type="button">×</button>
+    <div class="text-right mt-4 space-x-4">
+      <a href="suggestion.php" class="text-blue-600 hover:underline">เสนอแนะเกี่ยวกับระบบ</a> |
+      <a href="User_manual.php" class="text-blue-600 hover:underline">คู่มือการใช้งาน</a> |
+      <a href="feature_editing_history.php" class="text-blue-600 hover:underline">ประวัติการแก้ไข</a>
     </div>
-    <form method="post">
-      <input type="hidden" name="action" value="add_user">
-      <div class="form-grid">
-        <input class="input" name="username" placeholder="Username" required>
-        <input class="input" type="email" name="email" placeholder="Email" required>
-        <select class="select" name="role" required>
-          <option value="Admin">Admin</option>
-          <option value="Officer">Officer</option>
-          <option value="Lecturer">Lecturer</option>
-        </select>
-        <input class="input" name="password" placeholder="รหัสผ่านเริ่มต้น (ไม่บังคับ)">
-      </div>
-      <div class="form-actions">
-        <button type="button" class="btn gray" data-close>ยกเลิก</button>
-        <button class="btn blue" type="submit">บันทึก</button>
-      </div>
-    </form>
   </div>
 </div>
 
-<!-- Modal Edit -->
-<div class="modal" id="modalEdit">
-  <div class="modal-card">
-    <div class="modal-head">
-      <div class="modal-title">แก้ไขบัญชีผู้ใช้</div>
-      <button class="btn gray" data-close type="button">×</button>
+<!-- Dialog: Add -->
+<dialog id="dlgAdd" class="rounded-xl p-0">
+  <form method="post" class="p-6 space-y-4" onsubmit="return confirm('ยืนยันเพิ่มผู้ใช้?');">
+    <h3 class="text-lg font-bold">เพิ่มบัญชีผู้ใช้ใหม่</h3>
+    <input type="hidden" name="action" value="add_user">
+    <input type="text" name="username" placeholder="Username" required class="w-full border rounded px-3 py-2">
+    <input type="email" name="email" placeholder="Email" required class="w-full border rounded px-3 py-2">
+    <input type="password" name="password" placeholder="รหัสผ่านเริ่มต้น" required class="w-full border rounded px-3 py-2">
+    <select name="user_type_ID" required class="w-full border rounded px-3 py-2">
+      <option value="">-- เลือกสิทธิ์ผู้ใช้ --</option>
+      <?php foreach($userTypes as $t): ?>
+        <option value="<?= (int)$t['user_type_ID'] ?>"><?= h($t['type_name']) ?></option>
+      <?php endforeach; ?>
+    </select>
+    <div class="flex justify-end gap-2">
+      <button type="button" class="px-3 py-1 rounded bg-gray-200" onclick="document.getElementById('dlgAdd').close()">ยกเลิก</button>
+      <button class="px-3 py-1 rounded bg-blue-600 text-white">บันทึก</button>
     </div>
-    <form method="post" id="formEdit">
-      <input type="hidden" name="action" value="update_user">
-      <input type="hidden" name="id" id="edit_id">
-      <div class="form-grid">
-        <input class="input" name="username" id="edit_username" required>
-        <input class="input" type="email" name="email" id="edit_email" required>
-        <select class="select" name="role" id="edit_role" required>
-          <option value="Admin">Admin</option>
-          <option value="Officer">Officer</option>
-          <option value="Lecturer">Lecturer</option>
-        </select>
-      </div>
-      <div class="form-actions">
-        <button type="button" class="btn gray" data-close>ยกเลิก</button>
-        <button class="btn blue" type="submit">บันทึกการแก้ไข</button>
-      </div>
-    </form>
-  </div>
-</div>
+  </form>
+</dialog>
+
+<!-- Dialog: Edit -->
+<dialog id="dlgEdit" class="rounded-xl p-0">
+  <form method="post" class="p-6 space-y-4" onsubmit="return confirm('บันทึกการแก้ไข?');">
+    <h3 class="text-lg font-bold">แก้ไขผู้ใช้</h3>
+    <input type="hidden" name="action" value="update_user">
+    <input type="hidden" name="UID" id="editUID">
+    <input type="text" name="username" id="editUsername" required class="w-full border rounded px-3 py-2">
+    <input type="email" name="email" id="editEmail" required class="w-full border rounded px-3 py-2">
+    <select name="user_type_ID" id="editType" required class="w-full border rounded px-3 py-2">
+      <?php foreach($userTypes as $t): ?>
+        <option value="<?= (int)$t['user_type_ID'] ?>"><?= h($t['type_name']) ?></option>
+      <?php endforeach; ?>
+    </select>
+    <div class="flex justify-end gap-2">
+      <button type="button" class="px-3 py-1 rounded bg-gray-200" onclick="document.getElementById('dlgEdit').close()">ยกเลิก</button>
+      <button class="px-3 py-1 rounded bg-blue-600 text-white">บันทึก</button>
+    </div>
+  </form>
+</dialog>
+
+<!-- Dialog: Reset Password -->
+<dialog id="dlgReset" class="rounded-xl p-0">
+  <form method="post" class="p-6 space-y-4" onsubmit="return confirm('รีเซ็ตรหัสผ่าน?');">
+    <h3 class="text-lg font-bold">รีเซ็ตรหัสผ่าน</h3>
+    <input type="hidden" name="action" value="reset_password">
+    <input type="hidden" name="UID" id="resetUID">
+    <input type="password" name="new_password" placeholder="รหัสผ่านใหม่" required class="w-full border rounded px-3 py-2">
+    <div class="flex justify-end gap-2">
+      <button type="button" class="px-3 py-1 rounded bg-gray-200" onclick="document.getElementById('dlgReset').close()">ยกเลิก</button>
+      <button class="px-3 py-1 rounded bg-amber-500 text-white">ยืนยัน</button>
+    </div>
+  </form>
+</dialog>
 
 <script>
-const $ = (s, el=document)=> el.querySelector(s);
-const $$ = (s, el=document)=> Array.from(el.querySelectorAll(s));
-
-function openModal(id){ $(id).classList.add('open'); }
-function closeModal(btn){ btn.closest('.modal').classList.remove('open'); }
-
-$('#btnAdd')?.addEventListener('click', ()=> openModal('#modalAdd'));
-$$('[data-close]').forEach(b=> b.addEventListener('click', e=> closeModal(e.target)));
-
-$$('[data-edit]').forEach(btn=>{
-  btn.addEventListener('click', ()=>{
-    $('#edit_id').value = btn.dataset.id;
-    $('#edit_username').value = btn.dataset.username || '';
-    $('#edit_email').value = btn.dataset.email || '';
-    $('#edit_role').value = btn.dataset.role || 'Lecturer';
-    openModal('#modalEdit');
-  });
-});
+  function openEdit(uid, username, email, typeId){
+    document.getElementById('editUID').value = uid;
+    document.getElementById('editUsername').value = username;
+    document.getElementById('editEmail').value = email;
+    document.getElementById('editType').value = parseInt(typeId,10);
+    document.getElementById('dlgEdit').showModal();
+  }
+  function openReset(uid){
+    document.getElementById('resetUID').value = uid;
+    document.getElementById('dlgReset').showModal();
+  }
 </script>
 </body>
 </html>
