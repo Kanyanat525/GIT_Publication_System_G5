@@ -2,6 +2,12 @@
 session_start();
 require_once "db_connect.php";
 
+// ถ้าเข้าสู่ระบบแล้ว ไม่ให้กลับมาหน้านี้อีก
+if (isset($_SESSION["user"])) {
+    header("Location: index.php");
+    exit();
+}
+
 if ($_SERVER["REQUEST_METHOD"] == "POST") {
     $username = trim($_POST["username"]);
     $password = $_POST["password"];
@@ -20,13 +26,8 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
             $_SESSION["user_id"] = $row["UID"];
             $_SESSION["user_type"] = $row["user_type_ID"];
 
-            switch ($row["user_type_ID"]) {
-                case 1: header("Location: admin.php"); break;
-                case 2: header("Location: officer.php"); break;
-                case 3: header("Location: lecturer.php"); break;
-                case 4: header("Location: student.php"); break;
-                default: header("Location: dashboard.php"); break;
-            }
+            // ✅ เปลี่ยนเส้นทางหลังเข้าสู่ระบบ
+            header("Location: index.php");
             exit();
         } else {
             $error = "รหัสผ่านไม่ถูกต้อง";
@@ -186,7 +187,6 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
 
                     <div class="input-group">
                         <input type="password" id="password" name="password" placeholder="รหัสผ่าน" required>
-                        <!-- 👁️ ดวงตา: เปิด = มองเห็น, ปิด = ซ่อน -->
                         <button type="button" class="toggle-password" onclick="togglePassword()">
                             <i class="fa-solid fa-eye-slash"></i>
                         </button>
@@ -203,7 +203,6 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     </div>
 
     <script>
-        // ✅ ฟังก์ชันสลับแสดง/ซ่อนรหัสผ่านให้ถูกตามความหมายของไอคอน
         function togglePassword() {
             const passwordInput = document.getElementById("password");
             const toggleIcon = document.querySelector(".toggle-password i");
